@@ -12,62 +12,61 @@ model = AutoModelForCausalLM.from_pretrained(
 model.eval()
 print("✅ Modèle et tokenizer chargés")
 
-# Améliorer le format du prompt
-system_context = "Tu dois répondre de façon factuelle en une phrase simple. "
-prompt = "Complète la phrase suivante: La capitale de la France est"
-full_prompt = f"{system_context}{prompt}"
-print(f"\nTest avec le prompt: {prompt}")
-
-# Encoder l'entrée avec les tokens spéciaux
-inputs = tokenizer(
-    f"{tokenizer.bos_token}{full_prompt}",
-    return_tensors="pt",
-    truncation=True,
-    max_length=512,
-    add_special_tokens=True,
-    padding=True
-)
-
-# Configurer les paramètres de génération de manière cohérente
-with torch.no_grad():
-    outputs = model.generate(
-        **inputs,
-        max_length=30,
-        min_length=5,
-        num_return_sequences=1,
-        do_sample=True,  # Activé pour utiliser temperature et top_k
-        temperature=0.1,
-        top_k=10,
-        repetition_penalty=1.5,
-        no_repeat_ngram_size=2,
-        pad_token_id=tokenizer.pad_token_id,
-        bos_token_id=tokenizer.bos_token_id,
-        eos_token_id=tokenizer.eos_token_id,
-        use_cache=True,
-        num_beams=2,  # Augmenté pour utiliser early_stopping
-        early_stopping=True
-    )
-
-# Décoder et afficher la réponse
-generated_text = tokenizer.decode(
-    outputs[0],
-    skip_special_tokens=True,
-    clean_up_tokenization_spaces=True
-)
-
-# Post-traitement pour nettoyer la sortie
-def clean_response(text):
-    # Enlever le contexte et le prompt
-    text = text.replace(system_context, "").replace(prompt, "").strip()
+def generate_response(prompt_text):
+    # Préparer le prompt
+    system_context = "Tu dois répondre de façon factuelle en une phrase simple. "
+    full_prompt = f"{system_context}{prompt_text}"
     
+    # Encoder l'entrée
+    inputs = tokenizer(
+        f"{tokenizer.bos_token}{full_prompt}",
+        return_tensors="pt",
+        truncation=True,
+        max_length=512,
+        add_special_tokens=True,
+        padding=True
+    )
+    
+    # Générer la réponse
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            max_length=30,
+            min_length=5,
+            num_return_sequences=1,
+            do_sample=True,
+            temperature=0.1,
+            top_k=10,
+            repetition_penalty=1.5,
+            no_repeat_ngram_size=2,
+            pad_token_id=tokenizer.pad_token_id,
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+            use_cache=True,
+            num_beams=2,
+            early_stopping=True
+        )
+    
+    return tokenizer.decode(outputs[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
+
+def clean_response(text, prompt_text):
     # Nettoyer la réponse
     text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'.*?[Ll]a capitale de la France est\s*', '', text)
-    text = re.sub(r'[^a-zA-ZÀ-ÿ\s\.]', '', text)
-    
-    # Retourner la réponse nettoyée
+    text = text.replace(prompt_text, "").strip()
+    text = re.sub(r'[^a-zA-ZÀ-ÿ\s\.,]', '', text)
     return text
 
-cleaned_text = clean_response(generated_text)
-print("\nRéponse générée :")
-print(cleaned_text)
+# Boucle principale d'interaction
+print("\nEntrez votre prompt (ou 'q' pour quitter):")
+while True:
+    user_input = input("> ")
+    if user_input.lower() == 'q':
+        print("Au revoir!")
+        break
+        
+    if user_input.strip():
+        generated = generate_response(user_input)
+        cleaned = clean_response(generated, user_input)
+        print("\nRéponse générée:")
+        print(cleaned)
+        print("\nEntrez un nouveau prompt (ou 'q' pour quitter):")
