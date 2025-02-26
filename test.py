@@ -12,9 +12,9 @@ model = AutoModelForCausalLM.from_pretrained(
 model.eval()
 print("✅ Modèle et tokenizer chargés")
 
-# Améliorer le format du prompt avec un contexte
-system_context = "Tu es un assistant IA qui répond de façon claire et concise aux questions. "
-prompt = "Question: Quelle est la capitale de la France ? Réponse: La capitale de la France est"
+# Améliorer le format du prompt
+system_context = "Tu dois répondre de façon factuelle en une phrase simple. "
+prompt = "Complète la phrase suivante: La capitale de la France est"
 full_prompt = f"{system_context}{prompt}"
 print(f"\nTest avec le prompt: {prompt}")
 
@@ -28,24 +28,23 @@ inputs = tokenizer(
     padding=True
 )
 
-# Ajuster les paramètres de génération
+# Configurer les paramètres de génération de manière cohérente
 with torch.no_grad():
     outputs = model.generate(
         **inputs,
-        max_length=50,  # Encore plus court pour forcer la concision
-        min_length=10,
+        max_length=30,
+        min_length=5,
         num_return_sequences=1,
-        do_sample=True,
-        temperature=0.3,  # Encore plus bas pour plus de déterminisme
-        top_k=20,
-        top_p=0.85,
-        repetition_penalty=1.4,
-        no_repeat_ngram_size=4,
+        do_sample=True,  # Activé pour utiliser temperature et top_k
+        temperature=0.1,
+        top_k=10,
+        repetition_penalty=1.5,
+        no_repeat_ngram_size=2,
         pad_token_id=tokenizer.pad_token_id,
         bos_token_id=tokenizer.bos_token_id,
         eos_token_id=tokenizer.eos_token_id,
         use_cache=True,
-        num_beams=3,
+        num_beams=2,  # Augmenté pour utiliser early_stopping
         early_stopping=True
     )
 
@@ -61,24 +60,13 @@ def clean_response(text):
     # Enlever le contexte et le prompt
     text = text.replace(system_context, "").replace(prompt, "").strip()
     
-    # Enlever les références et liens
-    text = re.sub(r'\([^)]*\)', '', text)
-    text = re.sub(r'Liens? externes?.*$', '', text, flags=re.MULTILINE|re.DOTALL)
-    text = re.sub(r'[^:]*: (?=La capitale)', '', text)
-    
-    # Enlever les citations et références bibliographiques
-    text = re.sub(r'« [^»]* »', '', text)
-    text = re.sub(r'lire en ligne.*$', '', text, flags=re.MULTILINE)
-    
-    # Nettoyer le formatage
+    # Nettoyer la réponse
     text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'([.!?])\s*(?=[A-Z])', r'\1\n', text)
+    text = re.sub(r'.*?[Ll]a capitale de la France est\s*', '', text)
+    text = re.sub(r'[^a-zA-ZÀ-ÿ\s\.]', '', text)
     
-    # Garder uniquement la première phrase pertinente
-    sentences = text.split('.')
-    relevant_sentence = next((s for s in sentences if 'Paris' in s or 'capitale' in s.lower()), sentences[0])
-    
-    return relevant_sentence.strip() + "."
+    # Retourner la réponse nettoyée
+    return text
 
 cleaned_text = clean_response(generated_text)
 print("\nRéponse générée :")
