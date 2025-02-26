@@ -8,6 +8,7 @@ import json
 # Vérifier les dépendances
 try:
     import accelerate
+
     if accelerate.__version__ < "0.26.0":
         raise ImportError("accelerate>=0.26.0 required")
 except ImportError:
@@ -35,7 +36,7 @@ print(f"Taille du dataset de test: {len(eval_dataset)}")
 # Vérifier que CUDA est disponible
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
- 
+
 training_args = TrainingArguments(
     output_dir="trained_llm",
     eval_strategy="steps",
@@ -62,9 +63,7 @@ training_args = TrainingArguments(
 
 # Data collator ajusté
 data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer,
-    mlm=False,
-    pad_to_multiple_of=8
+    tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8
 )
 
 trainer = Trainer(
@@ -82,18 +81,18 @@ try:
     print(f"Train dataset size: {len(train_dataset)}")
     print(f"Eval dataset size: {len(eval_dataset)}")
     print(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
-    
+
     # Vérifier le format des données
     print("Sample input:", next(iter(train_dataset)))
-    
+
     trainer.train()
-    
+
     # Sauvegarder avec les métadonnées nécessaires
     output_dir = "trained_llm"
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
     model.config.save_pretrained(output_dir)
-    
+
     # Sauvegarder les métriques d'entraînement
     training_stats = {
         "final_loss": trainer.state.log_history[-1].get("loss"),
@@ -101,15 +100,16 @@ try:
         "num_epochs": trainer.state.num_train_epochs,
         "total_steps": trainer.state.global_step,
         "model_type": "gpt2",
-        "base_model": "dbddv01/gpt2-french-small"
+        "base_model": "dbddv01/gpt2-french-small",
     }
-    
+
     with open(f"{output_dir}/training_stats.json", "w") as f:
         json.dump(training_stats, f, indent=2)
-    
+
     print("✅ Modèle entraîné et sauvegardé !")
-    
+
 except Exception as e:
     print(f"❌ Erreur pendant l'entraînement : {str(e)}")
     import traceback
+
     traceback.print_exc()
