@@ -12,7 +12,7 @@ model.eval()
 print("✅ Modèle et tokenizer chargés")
 
 # Préparer l'entrée
-prompt = "Quelle est la capitale de la France ?"
+prompt = "Que veut dire l'acronyme IA ?"
 print(f"\nTest avec le prompt: {prompt}")
 
 # Encoder l'entrée avec les tokens spéciaux
