@@ -42,21 +42,25 @@ LLM-AI/
 ## 🔧 Utilisation
 
 1. **Extraction des données** :
+
 ```bash
 python wiki-scrap.py
 ```
 
 2. **Préparation des tokens** :
+
 ```bash
 python tokenizer.py
 ```
 
 3. **Entraînement du modèle** :
+
 ```bash
 python train.py
 ```
 
 4. **Test du modèle** :
+
 ```bash
 python test.py
 ```
@@ -97,12 +101,14 @@ print(response)
 ## 📚 Données
 
 Les catégories d'articles Wikipédia utilisées :
+
 - Base : Histoire, géographie et culture française
 - Tech : IA, apprentissage automatique, deep learning
 
 ## 🤝 Contribution
 
 Les contributions sont les bienvenues ! N'hésitez pas à :
+
 1. Fork le projet
 2. Créer une branche (`git checkout -b feature/amelioration`)
 3. Commit vos changements (`git commit -m 'Ajout d'une fonctionnalité'`)
