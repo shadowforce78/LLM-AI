@@ -3,6 +3,7 @@ from transformers import Trainer, TrainingArguments, DataCollatorForLanguageMode
 from datasets import load_from_disk
 from tokenizer import tokenizer
 from modele_base import *
+import transformers # Importer pour éviter les erreurs de type
 import json
 
 # Vérifier les dépendances
@@ -37,33 +38,45 @@ print(f"Taille du dataset de test: {len(eval_dataset)}")
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
+# Vérifier la mémoire GPU disponible pour ajuster le batch size
+if torch.cuda.is_available():
+    gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3  # en GB
+    suggested_batch_size = max(4, min(16, int(gpu_mem/4)))  # 4GB par batch environ
+else:
+    suggested_batch_size = 4
+
 training_args = TrainingArguments(
     output_dir="trained_llm",
     eval_strategy="steps",
     save_strategy="steps",
     evaluation_strategy="steps",
-    save_steps=100,
-    eval_steps=100,
-    learning_rate=5e-5,  # Taux d'apprentissage plus faible pour le fine-tuning
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=4,
-    num_train_epochs=10,  # Plus d'epochs
-    weight_decay=0.01,
-    warmup_steps=500,  # Ajout d'un warmup
-    save_total_limit=2,
+    save_steps=50,  # Sauvegarde plus fréquente
+    eval_steps=50,
+    learning_rate=1e-5,  # Learning rate réduit pour plus de stabilité
+    per_device_train_batch_size=suggested_batch_size,
+    per_device_eval_batch_size=suggested_batch_size,
+    num_train_epochs=15,  # Plus d'epochs pour compenser le learning rate plus faible
+    weight_decay=0.02,  # Augmenté pour une meilleure régularisation
+    warmup_ratio=0.1,  # Utilisation d'un ratio plutôt qu'un nombre fixe de steps
+    lr_scheduler_type="cosine",  # Scheduler plus progressif
+    save_total_limit=3,
     fp16=torch.cuda.is_available(),
     logging_dir="./logs",
-    logging_steps=50,
+    logging_steps=25,
     load_best_model_at_end=True,
     metric_for_best_model="loss",
     greater_is_better=False,
     remove_unused_columns=False,
     prediction_loss_only=True,
+    gradient_accumulation_steps=2,  # Accumulation des gradients pour simuler un batch size plus grand
+    gradient_checkpointing=True,  # Économie de mémoire
 )
 
-# Data collator ajusté
+# Ajuster le data collator pour le batch size
 data_collator = DataCollatorForLanguageModeling(
-    tokenizer=tokenizer, mlm=False, pad_to_multiple_of=8
+    tokenizer=tokenizer,
+    mlm=False,
+    pad_to_multiple_of=8 if torch.cuda.is_available() else None
 )
 
 trainer = Trainer(
@@ -75,18 +88,72 @@ trainer = Trainer(
     data_collator=data_collator,
 )
 
-# Ajout d'un try-except plus détaillé
+# Ajouter une fonction pour formater les nombres
+def format_number(num):
+    for unit in ['', 'K', 'M', 'B']:
+        if abs(num) < 1000.0:
+            return f"{num:3.1f}{unit}"
+        num /= 1000.0
+    return f"{num:.1f}T"
+
+print("\n" + "="*50)
+print("🚀 INITIALISATION DE L'ENTRAÎNEMENT")
+print("="*50)
+
+# Affichage des informations sur le dataset
+print("\n📊 INFORMATIONS DU DATASET:")
+print(f"├─ Taille totale: {format_number(n_samples)} exemples")
+print(f"├─ Dataset d'entraînement: {format_number(len(train_dataset))} exemples")
+print(f"└─ Dataset de test: {format_number(len(eval_dataset))} exemples")
+
+# Affichage des informations sur le matériel
+print("\n💻 CONFIGURATION MATÉRIELLE:")
+print(f"├─ Device: {device.upper()}")
+if torch.cuda.is_available():
+    print(f"├─ GPU: {torch.cuda.get_device_name(0)}")
+    print(f"└─ Mémoire GPU: {format_number(gpu_mem)}GB")
+else:
+    print("└─ Mode CPU uniquement")
+
+# Affichage des paramètres d'entraînement
+print("\n⚙️ PARAMÈTRES D'ENTRAÎNEMENT:")
+print(f"├─ Batch size effectif: {suggested_batch_size * training_args.gradient_accumulation_steps}")
+print(f"├─ Learning rate: {training_args.learning_rate:.2e}")
+print(f"├─ Nombre d'epochs: {int(training_args.num_train_epochs)}")
+print(f"├─ Gradient accumulation steps: {training_args.gradient_accumulation_steps}")
+print(f"└─ Weight decay: {training_args.weight_decay}")
+
+# Modification du try-except pour plus de clarté
 try:
-    print("Starting training...")
-    print(f"Train dataset size: {len(train_dataset)}")
-    print(f"Eval dataset size: {len(eval_dataset)}")
-    print(f"Model parameters: {sum(p.numel() for p in model.parameters())}")
+    print("\n🏃 DÉMARRAGE DE L'ENTRAÎNEMENT...")
+    print(f"└─ Paramètres du modèle: {format_number(sum(p.numel() for p in model.parameters()))}")
+    
+    # Créer une classe de callback personnalisée pour le logging
+    class CustomCallback(transformers.TrainerCallback):
+        def on_epoch_end(self, args, state, control, **kwargs):
+            if state.epoch.is_integer():
+                print(f"\n📈 Epoch {int(state.epoch)}/{int(training_args.num_train_epochs)}:")
+                if state.log_history:
+                    latest_logs = state.log_history[-1]
+                    loss = latest_logs.get('loss')
+                    eval_loss = latest_logs.get('eval_loss')
+                    
+                    # Format losses only if they are numbers
+                    loss_str = f"{loss:.4f}" if isinstance(loss, (int, float)) else "N/A"
+                    eval_loss_str = f"{eval_loss:.4f}" if isinstance(eval_loss, (int, float)) else "N/A"
+                    
+                    print(f"├─ Loss: {loss_str}")
+                    print(f"└─ Eval Loss: {eval_loss_str}")
 
-    # Vérifier le format des données
-    print("Sample input:", next(iter(train_dataset)))
-
+    # Ajouter le callback au trainer
+    trainer.add_callback(CustomCallback())
+    
+    # Lancer l'entraînement
     trainer.train()
-
+    
+    print("\n✅ ENTRAÎNEMENT TERMINÉ AVEC SUCCÈS!")
+    print("="*50)
+    
     # Sauvegarder avec les métadonnées nécessaires
     output_dir = "trained_llm"
     trainer.save_model(output_dir)
@@ -109,7 +176,9 @@ try:
     print("✅ Modèle entraîné et sauvegardé !")
 
 except Exception as e:
-    print(f"❌ Erreur pendant l'entraînement : {str(e)}")
+    print("\n❌ ERREUR PENDANT L'ENTRAÎNEMENT")
+    print("="*50)
+    print(f"Nature de l'erreur: {str(e)}")
     import traceback
 
     traceback.print_exc()
