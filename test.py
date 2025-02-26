@@ -17,30 +17,33 @@ print(f"\nTest avec le prompt: {prompt}")
 
 # Encoder l'entrée avec les tokens spéciaux
 inputs = tokenizer(
-    prompt,
+    f"{tokenizer.bos_token}{prompt}",
     return_tensors="pt",
     truncation=True,
     max_length=512,
-    add_special_tokens=True
+    add_special_tokens=True,
+    padding=True
 )
 
 # Générer la réponse
 with torch.no_grad():
     outputs = model.generate(
         **inputs,
-        max_length=100,
-        min_length=20,
+        max_length=150,
+        min_length=30,
         num_return_sequences=1,
         do_sample=True,
-        temperature=0.9,
+        temperature=0.7,  # Diminué pour plus de cohérence
         top_k=50,
-        top_p=0.92,
+        top_p=0.95,
         repetition_penalty=1.2,
         no_repeat_ngram_size=3,
         pad_token_id=tokenizer.pad_token_id,
         bos_token_id=tokenizer.bos_token_id,
         eos_token_id=tokenizer.eos_token_id,
-        use_cache=True
+        use_cache=True,
+        num_beams=5,  # Ajout de beam search
+        early_stopping=True
     )
 
 # Décoder et afficher la réponse
