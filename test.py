@@ -13,13 +13,12 @@ model.eval()
 print("✅ Modèle et tokenizer chargés")
 
 def generate_response(prompt_text):
-    # Préparer le prompt
-    system_context = "Tu dois répondre de façon factuelle en une phrase simple. "
-    full_prompt = f"{system_context}{prompt_text}"
+    # Reformater le prompt pour de meilleures réponses
+    formatted_prompt = f"Question: {prompt_text}\nRéponse:"
     
     # Encoder l'entrée
     inputs = tokenizer(
-        f"{tokenizer.bos_token}{full_prompt}",
+        f"{tokenizer.bos_token}{formatted_prompt}",
         return_tensors="pt",
         truncation=True,
         max_length=512,
@@ -31,14 +30,15 @@ def generate_response(prompt_text):
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_length=30,
-            min_length=5,
+            max_length=50,
+            min_length=10,
             num_return_sequences=1,
             do_sample=True,
-            temperature=0.1,
-            top_k=10,
-            repetition_penalty=1.5,
-            no_repeat_ngram_size=2,
+            temperature=0.3,
+            top_k=20,
+            top_p=0.9,
+            repetition_penalty=1.4,
+            no_repeat_ngram_size=3,
             pad_token_id=tokenizer.pad_token_id,
             bos_token_id=tokenizer.bos_token_id,
             eos_token_id=tokenizer.eos_token_id,
@@ -49,15 +49,26 @@ def generate_response(prompt_text):
     
     return tokenizer.decode(outputs[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
 
-def clean_response(text, prompt_text):
-    # Nettoyer la réponse
+def clean_response(text, original_prompt):
+    # Enlever les parties du prompt et le contexte
+    text = text.replace("Question:", "").replace("Réponse:", "").strip()
+    text = text.replace(original_prompt, "").strip()
+    
+    # Nettoyer la ponctuation et les caractères spéciaux
     text = re.sub(r'\s+', ' ', text)
-    text = text.replace(prompt_text, "").strip()
-    text = re.sub(r'[^a-zA-ZÀ-ÿ\s\.,]', '', text)
-    return text
+    text = re.sub(r'[^a-zA-ZÀ-ÿ\s\.,?!]', '', text)
+    
+    # Enlever les segments non pertinents
+    text = re.sub(r'Notes? et références.*$', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'Liens? externes?.*$', '', text, flags=re.IGNORECASE)
+    
+    # Nettoyer les espaces multiples et les sauts de ligne
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    return text if text else "Désolé, je n'ai pas de réponse claire à cette question."
 
 # Boucle principale d'interaction
-print("\nEntrez votre prompt (ou 'q' pour quitter):")
+print("\nPosez votre question (ou 'q' pour quitter):")
 while True:
     user_input = input("> ")
     if user_input.lower() == 'q':
@@ -67,6 +78,6 @@ while True:
     if user_input.strip():
         generated = generate_response(user_input)
         cleaned = clean_response(generated, user_input)
-        print("\nRéponse générée:")
+        print("\nRéponse:")
         print(cleaned)
-        print("\nEntrez un nouveau prompt (ou 'q' pour quitter):")
+        print("\nPosez votre question (ou 'q' pour quitter):")
