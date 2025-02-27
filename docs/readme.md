@@ -31,12 +31,18 @@ pip install transformers torch datasets wikipediaapi tqdm accelerate
 
 ```
 LLM-AI/
-├── wiki-scrap.py        # Extraction des données Wikipedia
-├── tokenizer.py         # Configuration du tokenizer
-├── modele_base.py       # Définition du modèle
-├── train.py            # Script d'entraînement
-├── test.py             # Script de test
-└── trained_llm/        # Dossier du modèle entraîné
+├── data/
+│   ├── raw/              # Données brutes extraites de Wikipédia
+│   ├── processed/        # Données traitées prêtes pour l'entraînement
+├── scripts/
+│   ├── wiki-scrap.py     # Extraction des données Wikipedia
+│   ├── tokenizer.py      # Configuration du tokenizer
+│   ├── train.py          # Script d'entraînement
+│   ├── test.py           # Script de test
+├── models/
+│   ├── base_model/       # Modèle de base non entraîné
+│   ├── trained_model/    # Modèle entraîné
+└── notebooks/            # Notebooks Jupyter pour l'exploration et l'analyse
 ```
 
 ## 🔧 Utilisation
@@ -44,25 +50,25 @@ LLM-AI/
 1. **Extraction des données** :
 
 ```bash
-python wiki-scrap.py
+python scripts/wiki-scrap.py
 ```
 
 2. **Préparation des tokens** :
 
 ```bash
-python tokenizer.py
+python scripts/tokenizer.py
 ```
 
 3. **Entraînement du modèle** :
 
 ```bash
-python train.py
+python scripts/train.py
 ```
 
 4. **Test du modèle** :
 
 ```bash
-python test.py
+python scripts/test.py
 ```
 
 ## 📊 Exemple d'utilisation
@@ -71,8 +77,8 @@ python test.py
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 # Charger le modèle et le tokenizer
-tokenizer = AutoTokenizer.from_pretrained("trained_llm")
-model = AutoModelForCausalLM.from_pretrained("trained_llm")
+tokenizer = AutoTokenizer.from_pretrained("models/trained_model")
+model = AutoModelForCausalLM.from_pretrained("models/trained_model")
 
 # Générer du texte
 prompt = "Quelle est la capitale de la France ?"
