@@ -16,6 +16,14 @@ categories = {
         "Traitement_automatique_des_langues", "Apprentissage_profond",
         "Réseau_de_neurones_artificiels", "Transformateur_(apprentissage_profond)",
         "Big_data", "Science_des_données", "Informatique_quantique"
+    ],
+    "Sciences": [
+        "Biologie", "Chimie", "Physique", "Mathématiques", "Astronomie", "Géologie",
+        "Science", "Médecine", "Psychologie", "Sociologie"
+    ],
+    "Culture": [
+        "Musique", "Cinéma", "Littérature", "Peinture", "Sculpture", "Danse", "Théâtre",
+        "Photographie", "Art", "Culture"
     ]
 }
 
