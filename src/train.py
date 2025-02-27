@@ -1,11 +1,55 @@
 import torch
+import os
+import sys
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from datasets import load_from_disk
-from tokenizer import tokenizer
-from models.base.modele_base import *
-import transformers # Importer pour éviter les erreurs de type
+import transformers  # Importer pour éviter les erreurs de type
 import json
-import os
+
+# Add project root to path to resolve imports properly
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.append(project_root)
+
+# Get the project root directory for proper path resolution
+def get_project_root():
+    """Determine the project root directory based on execution context"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # If running from src directory
+    if os.path.basename(script_dir) == "src":
+        return os.path.dirname(script_dir)
+    
+    # If running from scripts directory or elsewhere
+    return os.path.abspath(os.path.join(script_dir, ".."))
+
+# Set project root and paths
+project_root = get_project_root()
+dataset_path = os.path.join(project_root, "data", "tokenized_dataset")
+output_dir = os.path.join(project_root, "trained_llm")
+models_dir = os.path.join(project_root, "models", "trained")
+
+# Now import modules with proper path resolution
+try:
+    from src.tokenizer import tokenizer
+except ImportError:
+    try:
+        from tokenizer import tokenizer
+    except ImportError:
+        print("Could not import tokenizer directly, trying alternative import")
+        sys.path.append(current_dir)
+        from tokenizer import tokenizer
+
+# Import model after path is configured
+try:
+    from models.base.modele_base import model
+except ImportError:
+    try:
+        sys.path.append(os.path.join(project_root, "models", "base"))
+        from models.base.modele_base import model
+    except ImportError:
+        print("Failed to import model. Please check paths and module structure.")
+        exit(1)
 
 # Vérifier les dépendances
 try:
@@ -17,7 +61,8 @@ except ImportError:
     raise ImportError("Please run: pip install 'accelerate>=0.26.0'")
 
 # Charger le dataset tokenisé
-tokenized_datasets = load_from_disk("data/tokenized_dataset")
+print(f"Loading tokenized dataset from: {dataset_path}")
+tokenized_datasets = load_from_disk(dataset_path)
 
 # Ajuster le split en fonction de la taille du dataset
 n_samples = len(tokenized_datasets)
@@ -56,7 +101,7 @@ training_args = TrainingArguments(
     learning_rate=1e-5,  # Learning rate réduit pour plus de stabilité
     per_device_train_batch_size=suggested_batch_size,
     per_device_eval_batch_size=suggested_batch_size,
-    num_train_epochs=15,  # Plus d'epochs pour compenser le learning rate plus faible
+    num_train_epochs=30,  # Plus d'epochs pour compenser le learning rate plus faible
     weight_decay=0.02,  # Augmenté pour une meilleure régularisation
     warmup_ratio=0.1,  # Utilisation d'un ratio plutôt qu'un nombre fixe de steps
     lr_scheduler_type="cosine",  # Scheduler plus progressif

@@ -1,7 +1,35 @@
 import torch
+import os
+import sys
 from transformers import AutoModelForCausalLM
-from config_base import MODEL_BASE
-from src.tokenizer import tokenizer
+
+# Fix import path issues
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.dirname(os.path.dirname(current_dir)))  # Add project root to path
+
+# Try different import approaches to ensure it works regardless of execution context
+try:
+    from models.base.config_base import MODEL_BASE
+except ImportError:
+    try:
+        from config_base import MODEL_BASE
+    except ImportError:
+        # Last resort, direct path import
+        sys.path.append(current_dir)
+        from config_base import MODEL_BASE
+
+# Try to import tokenizer with flexible path handling
+try:
+    from src.tokenizer import tokenizer
+except ImportError:
+    try:
+        sys.path.append(os.path.join(os.path.dirname(os.path.dirname(current_dir)), "src"))
+        from src.tokenizer import tokenizer
+    except ImportError:
+        print("Warning: Could not import tokenizer. Using fallback approach.")
+        # Create a minimal tokenizer as fallback
+        from transformers import AutoTokenizer
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_BASE)
 
 def create_model():
     # Charger le modèle pré-entraîné français

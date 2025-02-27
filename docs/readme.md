@@ -108,8 +108,10 @@ print(response)
 
 Les catégories d'articles Wikipédia utilisées :
 
-- Base : Histoire, géographie et culture française
-- Tech : IA, apprentissage automatique, deep learning
+- Base : France, Paris, Lyon, Marseille, Bordeaux, Toulouse, Strasbourg, Géographie de la France, Histoire de France, Culture française
+- Tech : Intelligence artificielle, Apprentissage automatique, Deep learning, Traitement automatique des langues, Apprentissage profond, Réseau de neurones artificiels, Transformateur (apprentissage profond), Big data, Science des données, Informatique quantique
+- Sciences : Biologie, Chimie, Physique, Mathématiques, Astronomie, Géologie, Science, Médecine, Psychologie, Sociologie
+- Culture : Musique, Cinéma, Littérature, Peinture, Sculpture, Danse, Théâtre, Photographie, Art, Culture
 
 ## 🤝 Contribution
 

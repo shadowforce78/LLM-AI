@@ -1,42 +1,69 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch
 import re
+import os
+import sys
 
-# Configuration
-MODEL_PATH = "models/trained"  # Chemin principal du modèle entraîné
-FALLBACK_PATH = "trained_llm"  # Chemin alternatif
+# Get project root directory for proper path resolution
+def get_project_root():
+    """Determine the project root directory based on execution context"""
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # If running from src directory
+    if os.path.basename(script_dir) == "src":
+        return os.path.dirname(script_dir)
+    
+    # If running from scripts directory or elsewhere
+    return os.path.abspath(os.path.join(script_dir, ".."))
+
+# Configuration with absolute paths based on project root
+project_root = get_project_root()
+MODEL_PATHS = [
+    os.path.join(project_root, "models", "trained"),
+    os.path.join(project_root, "trained_llm"),
+    # Fallback to a pre-trained French model if no fine-tuned model is found
+    "dbddv01/gpt2-french-small"
+]
 
 def init_model_and_tokenizer():
-    """Initialise le modèle et le tokenizer"""
+    """Initialise le modèle et le tokenizer en essayant plusieurs chemins"""
     print("⏳ Chargement du modèle et du tokenizer...")
     
-    try:
-        # Vérifier le chemin principal d'abord
-        import os
-        model_path = MODEL_PATH if os.path.exists(MODEL_PATH) else FALLBACK_PATH
-        print(f"Utilisation du modèle depuis: {model_path}")
-        
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        
-        # Configuration des tokens spéciaux
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-        
-        model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            trust_remote_code=True,
-            local_files_only=True
-        )
-        
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model.to(device)
-        model.eval()
-        
-        print(f"✅ Modèle chargé sur {device.upper()}")
-        return model, tokenizer, device
-    except Exception as e:
-        print(f"❌ Erreur lors du chargement du modèle: {e}")
-        return None, None, "cpu"
+    # Try each model path in order until one works
+    for model_path in MODEL_PATHS:
+        try:
+            print(f"Tentative de chargement depuis: {model_path}")
+            
+            # Check if it's a local directory - only proceed if it exists
+            if model_path != "dbddv01/gpt2-french-small" and not os.path.exists(model_path):
+                print(f"Le chemin {model_path} n'existe pas, essai du chemin suivant...")
+                continue
+                
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            
+            # Configuration des tokens spéciaux
+            if tokenizer.pad_token is None:
+                tokenizer.pad_token = tokenizer.eos_token
+            
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                trust_remote_code=True,
+                # Only use local_files_only for local paths
+                local_files_only=model_path != "dbddv01/gpt2-french-small"
+            )
+            
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model.to(device)
+            model.eval()
+            
+            print(f"✅ Modèle chargé depuis {model_path} sur {device.upper()}")
+            return model, tokenizer, device
+            
+        except Exception as e:
+            print(f"⚠️ Échec du chargement depuis {model_path}: {e}")
+    
+    print("❌ Impossible de charger le modèle depuis aucun des chemins disponibles")
+    return None, None, "cpu"
 
 def format_prompt(text):
     """Formatte le prompt pour une meilleure génération"""

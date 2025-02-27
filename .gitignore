@@ -3,4 +3,5 @@ __pycache__
 tokenized_dataset
 trained_llm
 frwiki-latest-pages-articles.xml.bz2
-wiki_api_dataset.json
+wiki_dataset.json
+trained/*

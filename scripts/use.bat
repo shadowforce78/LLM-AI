@@ -10,17 +10,23 @@ if %ERRORLEVEL% NEQ 0 (
     echo Tentative d'utilisation de l'environnement Python par défaut...
 )
 
-REM Vérification de l'existence du modèle entraîné (plusieurs emplacements possibles)
-if not exist "..\models\trained" (
+REM Change directory to project root for proper path resolution
+cd ..
+
+REM Set PYTHONPATH to include project root for proper imports
+set PYTHONPATH=%CD%
+
+REM Affichage d'avertissement si le modèle n'est pas trouvé
+if not exist "models\trained" (
     if not exist "trained_llm" (
-        echo Le modèle entraîné n'existe pas!
-        echo Veuillez d'abord exécuter le processus complet (scrap, tokenize, train)
-        exit /b 1
+        echo Avertissement: Modèle entraîné non trouvé.
+        echo Un modèle pré-entraîné sera téléchargé depuis HuggingFace.
+        echo Pour utiliser un modèle entraîné, exécutez d'abord le processus complet (scrap, tokenize, train)
     )
 )
 
 echo Lancement de l'assistant IA...
-python ../src/ai_assistant.py
+python src/ai_assistant.py
 if %ERRORLEVEL% NEQ 0 (
     echo Une erreur s'est produite lors du lancement de l'assistant.
     exit /b 1

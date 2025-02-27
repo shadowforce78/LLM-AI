@@ -10,13 +10,14 @@ if %ERRORLEVEL% NEQ 0 (
     echo Tentative d'utilisation de l'environnement Python par défaut...
 )
 
+REM Change directory to project root to ensure proper path resolution
+cd ..
+
 REM Création du dossier de sortie
-if not exist "..\data\raw" (
-    mkdir "..\data\raw" 2>nul
-)
+if not exist "data\raw" mkdir "data\raw" 2>nul
 
 echo Collecte des données Wikipedia en cours...
-python ../src/wiki-scrap.py
+python src/wiki-scrap.py
 if %ERRORLEVEL% NEQ 0 (
     echo Une erreur s'est produite lors de la collecte des données.
     exit /b 1
