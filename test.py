@@ -1,4 +1,4 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, Pipeline, pipeline
 import torch
 import re
 
@@ -20,11 +20,16 @@ def format_prompt(text):
     )
     return formatted
 
-# Base de connaissances pour les questions courantes
+# Base de connaissances enrichie
 KNOWLEDGE_BASE = {
     "capitale": {
         "France": "Paris est la capitale de la France. C'est la plus grande ville du pays et son centre économique et culturel.",
         "default": "Je ne connais pas la capitale de ce pays."
+    },
+    "population": {
+        "France": "La France compte environ 68 millions d'habitants (2024).",
+        "Paris": "Paris compte environ 2,2 millions d'habitants, et son aire urbaine environ 12 millions d'habitants.",
+        "default": "Je ne connais pas la population exacte."
     },
     "définition": {
         "IA": "L'Intelligence Artificielle (IA) est un domaine de l'informatique qui vise à créer des systèmes capables de simuler l'intelligence humaine.",
@@ -35,52 +40,100 @@ KNOWLEDGE_BASE = {
 def get_knowledge_base_answer(question):
     """Recherche une réponse dans la base de connaissances"""
     question = question.lower()
+    
+    # Règles de correspondance
+    if any(word in question for word in ["habitant", "population"]):
+        if "france" in question:
+            return KNOWLEDGE_BASE["population"]["France"]
+        if "paris" in question:
+            return KNOWLEDGE_BASE["population"]["Paris"]
+            
     if "capitale" in question and "france" in question:
         return KNOWLEDGE_BASE["capitale"]["France"]
+        
+    if ("qu'est" in question or "c'est quoi" in question) and "ia" in question:
+        return KNOWLEDGE_BASE["définition"]["IA"]
+        
     return None
 
+# Option pour activer/désactiver la base de connaissances
+USE_KNOWLEDGE_BASE = False  # Mettre à False pour utiliser uniquement le modèle
+
+# Améliorer les paramètres de génération
 def generate_response(prompt_text, max_new_tokens=100):
     """Génère une réponse avec des paramètres optimisés"""
-    # Vérifier d'abord la base de connaissances
-    kb_answer = get_knowledge_base_answer(prompt_text)
-    if kb_answer:
-        return kb_answer
+    # Vérifier d'abord la base de connaissances si activée
+    if USE_KNOWLEDGE_BASE:
+        kb_answer = get_knowledge_base_answer(prompt_text)
+        if kb_answer:
+            return kb_answer
 
-    formatted_prompt = format_prompt(prompt_text)
+    # Essayer avec un prompt direct sans formatage complexe
+    raw_prompt = f"{prompt_text}"
     
     inputs = tokenizer(
-        formatted_prompt,
+        raw_prompt,
         return_tensors="pt",
         truncation=True,
-        max_length=512,
-        add_special_tokens=True,
-        padding=True
+        max_length=256,  # Réduit pour éviter les problèmes de contexte
     )
     
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=max_new_tokens,
-            min_new_tokens=20,
-            num_return_sequences=1,
-            do_sample=True,
-            temperature=0.3,  # Réduit davantage pour plus de cohérence
-            top_k=10,        # Réduit pour plus de précision
-            top_p=0.85,
-            repetition_penalty=2.0,
-            length_penalty=1.5,
-            no_repeat_ngram_size=4,
-            num_beams=5,
-            early_stopping=True,
-            pad_token_id=tokenizer.pad_token_id,
-            bos_token_id=tokenizer.bos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-            bad_words_ids=[[tokenizer.pad_token_id]],
-        )
+    try:
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=100,
+                min_new_tokens=5,
+                num_return_sequences=1,
+                do_sample=True,
+                temperature=0.7,  # Plus de créativité
+                top_k=50,        # Moins restrictif
+                top_p=0.9,
+                repetition_penalty=1.2,  # Moins restrictif
+                no_repeat_ngram_size=3,
+                num_beams=1,      # Greedy decoding pour plus de spontanéité
+                pad_token_id=tokenizer.pad_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+            )
+        
+        # Décodage basique
+        generated_text = tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+        generated_text = generated_text.strip()
+        
+        # Vérifier si la réponse a du sens
+        if len(generated_text) < 10 or "Notes et références" in generated_text:
+            # Fallback à la base de connaissances si disponible
+            fallback = get_fallback_answer(prompt_text)
+            if fallback:
+                return fallback
+        
+        return generated_text
     
-    # Décodage et nettoyage
-    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return clean_response(generated_text, prompt_text)
+    except Exception as e:
+        print(f"Erreur de génération: {str(e)}")
+        # Fallback à la base de connaissances
+        fallback = get_fallback_answer(prompt_text)
+        if fallback:
+            return fallback
+        return "Je ne peux pas répondre à cette question pour le moment."
+
+def get_fallback_answer(question):
+    """Fournit une réponse de secours pour les questions courantes"""
+    question = question.lower()
+    
+    # Questions courantes et leurs réponses
+    fallbacks = {
+        "capitale france": "Paris est la capitale de la France.",
+        "habitant france": "La France compte environ 68 millions d'habitants (2024).",
+        "intelligence artificielle": "L'Intelligence Artificielle (IA) est un domaine de l'informatique qui vise à créer des systèmes capables de simuler l'intelligence humaine.",
+    }
+    
+    # Recherche de correspondance approximative
+    for key, answer in fallbacks.items():
+        if all(word in question for word in key.split()):
+            return answer
+            
+    return None
 
 def clean_response(text, original_prompt):
     """Nettoie et formate la réponse générée"""
@@ -95,6 +148,10 @@ def clean_response(text, original_prompt):
     response = re.sub(r'^\W+|\W+$', '', response)  # Nettoyer début/fin
     response = re.sub(r'Portail.*$', '', response)  # Supprimer les mentions "Portail"
     response = re.sub(r'###.*$', '', response)  # Supprimer les marqueurs restants
+    response = re.sub(r'Articles connexes.*$', '', response)
+    response = re.sub(r'Liens externes.*$', '', response)
+    response = re.sub(r'ISBN.*$', '', response)
+    response = re.sub(r'\([^)]*\)', '', response)  # Supprimer les parenthèses
     
     # Vérifications de qualité
     if len(response) < 10 or response.count(' ') < 2:
@@ -121,7 +178,14 @@ def init_model_with_examples():
 init_model_with_examples()
 
 # Interface utilisateur améliorée
-print("\n💬 Assistant IA - Posez vos questions (ou 'q' pour quitter)")
+print("\n💬 Assistant IA Français - basé sur GPT-2")
+print("=" * 50)
+print("📌 COMMANDES:")
+print(" - Tapez votre question et appuyez sur Entrée")
+print(" - Tapez 'kb' pour activer/désactiver la base de connaissances")
+print(" - Tapez 'q' pour quitter")
+print("=" * 50)
+print(f"📚 Base de connaissances: {'ACTIVÉE' if USE_KNOWLEDGE_BASE else 'DÉSACTIVÉE'}")
 print("=" * 50)
 
 while True:
@@ -130,6 +194,11 @@ while True:
         if user_input.lower() in ['q', 'quit', 'exit']:
             print("\nAu revoir ! 👋")
             break
+        
+        if user_input.lower() == 'kb':
+            USE_KNOWLEDGE_BASE = not USE_KNOWLEDGE_BASE
+            print(f"\n📚 Base de connaissances: {'ACTIVÉE' if USE_KNOWLEDGE_BASE else 'DÉSACTIVÉE'}")
+            continue
             
         if not user_input:
             continue
