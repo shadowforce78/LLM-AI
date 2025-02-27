@@ -252,10 +252,10 @@ data_collator = DataCollatorForLanguageModeling(
 callbacks = []
 
 # Early stopping plus patient pour éviter l'arrêt prématuré
-patience = 10 if n_samples > 1000 else 5
+patience = 25 if n_samples > 1000 else 15  # Augmenté considérablement pour éviter l'arrêt prématuré
 callbacks.append(transformers.EarlyStoppingCallback(
     early_stopping_patience=patience,
-    early_stopping_threshold=0.001
+    early_stopping_threshold=0.0005  # Seuil plus bas pour éviter l'arrêt trop rapide
 ))
 
 # Callback personnalisé pour le logging et sauvegarde des checkpoints avancés
@@ -266,6 +266,8 @@ class OptimizedTrainingCallback(transformers.TrainerCallback):
         self.epoch_losses = []
         self.plateau_count = 0
         self.last_improvement = 0
+        self.force_continue = True  # Forcer la continuation pendant un certain nombre d'epochs
+        self.min_epochs = min(50, int(training_args.num_train_epochs * 0.5))  # Au moins la moitié des époques totales
         
     def on_epoch_end(self, args, state, control, **kwargs):
         if not state.epoch.is_integer():
@@ -273,6 +275,11 @@ class OptimizedTrainingCallback(transformers.TrainerCallback):
             
         epoch = int(state.epoch)
         print(f"\n📈 Epoch {epoch}/{int(training_args.num_train_epochs)}:")
+        
+        # Forcer l'entraînement à continuer pendant min_epochs, même si early stopping serait déclenché
+        if epoch < self.min_epochs:
+            control.should_training_stop = False
+            print(f"ℹ️ Minimum d'epochs pas encore atteint ({epoch}/{self.min_epochs}), poursuite forcée de l'entraînement")
         
         if state.log_history:
             # Extraire les métriques de performance
@@ -291,8 +298,11 @@ class OptimizedTrainingCallback(transformers.TrainerCallback):
                 
                 # Vérifier si c'est la meilleure perte d'évaluation
                 if eval_loss < self.best_eval_loss:
+                    absolute_improvement = self.best_eval_loss - eval_loss
+                    relative_improvement = absolute_improvement / self.best_eval_loss if self.best_eval_loss > 0 else 0
+                    
                     self.best_eval_loss = eval_loss
-                    improvement = f"🔻 (-{self.best_eval_loss - eval_loss:.6f}, nouveau record!)"
+                    improvement = f"🔻 (-{absolute_improvement:.6f}, {relative_improvement*100:.2f}%, nouveau record!)"
                     self.last_improvement = epoch
                     improved = True
                     self.plateau_count = 0
@@ -306,13 +316,23 @@ class OptimizedTrainingCallback(transformers.TrainerCallback):
                 else:
                     plateau_length = epoch - self.last_improvement
                     self.plateau_count += 1
-                    improvement = f"(plateau: {plateau_length} epochs)"
+                    
+                    # Modifier le message selon la durée du plateau et l'avancement global
+                    if plateau_length > patience // 2:
+                        improvement = f"⚠️ (plateau: {plateau_length}/{patience} epochs)"
+                    else:
+                        improvement = f"(plateau: {plateau_length} epochs)"
                     
                     # Suggestions pour sortir d'un plateau
                     if self.plateau_count >= 3 and self.plateau_count % 3 == 0:
                         print(f"💡 Suggestion: plateau détecté depuis {plateau_length} epochs.")
                         if trainer.optimizer.param_groups[0]['lr'] > 1e-6:
-                            print("   Considérez réduire le learning rate ou activer les restarts.")
+                            progress_percent = epoch / training_args.num_train_epochs * 100
+                            
+                            if progress_percent < 50:
+                                print("   Considérez attendre, l'entraînement est encore dans sa première moitié.")
+                            elif plateau_length > patience // 2:
+                                print("   Attention: l'early stopping pourrait se déclencher bientôt.")
             else:
                 improvement = ""
                 
@@ -330,6 +350,14 @@ class OptimizedTrainingCallback(transformers.TrainerCallback):
                 print(f"📊 Évolution de la perte: ", end="")
                 self._print_loss_trend()
                 
+    def on_step_end(self, args, state, control, **kwargs):
+        """Interception des étapes pour éviter un arrêt prématuré forcé"""
+        # S'assurer que l'entraînement ne s'arrête pas avant le nombre minimum d'époques
+        current_epoch = state.epoch
+        if current_epoch < self.min_epochs and control.should_training_stop:
+            print(f"⚠️ Tentative d'arrêt prématuré à l'epoch {current_epoch:.2f} bloquée.")
+            control.should_training_stop = False
+            
     def _print_loss_trend(self):
         # Graphique ASCII amélioré avec marqueurs de tendance
         if len(self.epoch_losses) < 2:
