@@ -12,72 +12,88 @@ model = AutoModelForCausalLM.from_pretrained(
 model.eval()
 print("✅ Modèle et tokenizer chargés")
 
-def generate_response(prompt_text):
-    # Reformater le prompt pour de meilleures réponses
-    formatted_prompt = f"Question: {prompt_text}\nRéponse:"
+def format_prompt(text):
+    """Formatte le prompt pour une meilleure génération"""
+    # Ajout de contexte et de structure
+    formatted = f"{tokenizer.bos_token}Question : {text}\nRéponse : "
+    return formatted
+
+def generate_response(prompt_text, max_new_tokens=100):
+    """Génère une réponse avec des paramètres optimisés"""
+    formatted_prompt = format_prompt(prompt_text)
     
-    # Encoder l'entrée
     inputs = tokenizer(
-        f"{tokenizer.bos_token}{formatted_prompt}",
+        formatted_prompt,
         return_tensors="pt",
         truncation=True,
         max_length=512,
-        add_special_tokens=True,
-        padding=True
+        add_special_tokens=True
     )
     
-    # Générer la réponse
     with torch.no_grad():
         outputs = model.generate(
             **inputs,
-            max_length=50,
-            min_length=10,
+            max_new_tokens=max_new_tokens,
+            min_new_tokens=20,
             num_return_sequences=1,
             do_sample=True,
-            temperature=0.3,
-            top_k=20,
-            top_p=0.9,
-            repetition_penalty=1.4,
+            temperature=0.6,
+            top_k=50,
+            top_p=0.92,
+            repetition_penalty=1.5,
+            length_penalty=1.0,
             no_repeat_ngram_size=3,
+            num_beams=3,
+            early_stopping=True,
             pad_token_id=tokenizer.pad_token_id,
             bos_token_id=tokenizer.bos_token_id,
             eos_token_id=tokenizer.eos_token_id,
-            use_cache=True,
-            num_beams=2,
-            early_stopping=True
+            use_cache=True
         )
     
-    return tokenizer.decode(outputs[0], skip_special_tokens=True, clean_up_tokenization_spaces=True)
+    # Décodage et nettoyage
+    generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    return clean_response(generated_text, prompt_text)
 
 def clean_response(text, original_prompt):
-    # Enlever les parties du prompt et le contexte
-    text = text.replace("Question:", "").replace("Réponse:", "").strip()
-    text = text.replace(original_prompt, "").strip()
+    """Nettoie et formate la réponse générée"""
+    # Extraire la réponse
+    try:
+        response = text.split("Réponse :")[1].strip()
+    except IndexError:
+        response = text.replace(original_prompt, "").strip()
     
-    # Nettoyer la ponctuation et les caractères spéciaux
-    text = re.sub(r'\s+', ' ', text)
-    text = re.sub(r'[^a-zA-ZÀ-ÿ\s\.,?!]', '', text)
+    # Nettoyage basique
+    response = re.sub(r'\s+', ' ', response)
+    response = re.sub(r'^\W+', '', response)
+    response = re.sub(r'\W+$', '', response)
     
-    # Enlever les segments non pertinents
-    text = re.sub(r'Notes? et références.*$', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'Liens? externes?.*$', '', text, flags=re.IGNORECASE)
+    # Vérifier la qualité de la réponse
+    if len(response) < 10 or response.count(' ') < 2:
+        return "Je ne peux pas générer une réponse cohérente à cette question."
     
-    # Nettoyer les espaces multiples et les sauts de ligne
-    text = re.sub(r'\s+', ' ', text).strip()
-    
-    return text if text else "Désolé, je n'ai pas de réponse claire à cette question."
+    return response
 
-# Boucle principale d'interaction
-print("\nPosez votre question (ou 'q' pour quitter):")
+# Interface utilisateur améliorée
+print("\n💬 Assistant IA - Posez vos questions (ou 'q' pour quitter)")
+print("=" * 50)
+
 while True:
-    user_input = input("> ")
-    if user_input.lower() == 'q':
-        print("Au revoir!")
-        break
+    try:
+        user_input = input("\n➤ ").strip()
+        if user_input.lower() in ['q', 'quit', 'exit']:
+            print("\nAu revoir ! 👋")
+            break
+            
+        if not user_input:
+            continue
+            
+        print("\n🤔 Génération de la réponse...")
+        response = generate_response(user_input)
+        print("\n🤖 Réponse :")
+        print(response)
+        print("\n" + "=" * 50)
         
-    if user_input.strip():
-        generated = generate_response(user_input)
-        cleaned = clean_response(generated, user_input)
-        print("\nRéponse:")
-        print(cleaned)
-        print("\nPosez votre question (ou 'q' pour quitter):")
+    except Exception as e:
+        print(f"\n❌ Erreur: {str(e)}")
+        print("Veuillez réessayer avec une autre question.")
