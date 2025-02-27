@@ -5,6 +5,8 @@ from transformers import Trainer, TrainingArguments, DataCollatorForLanguageMode
 from datasets import load_from_disk
 import transformers  # Importer pour éviter les erreurs de type
 import json
+import datetime  # Pour générer des noms de dossier uniques basés sur la date/heure
+import uuid  # Pour générer des identifiants uniques
 
 # Add project root to path to resolve imports properly
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -26,7 +28,7 @@ def get_project_root():
 # Set project root and paths
 project_root = get_project_root()
 dataset_path = os.path.join(project_root, "data", "tokenized_dataset")
-output_dir = os.path.join(project_root, "trained_llm")
+output_dir = os.path.join(project_root, "models", "trained", "trained_llm")
 models_dir = os.path.join(project_root, "models", "trained")
 
 # Now import modules with proper path resolution
@@ -68,6 +70,11 @@ try:
 except ImportError:
     raise ImportError("Please run: pip install 'accelerate>=0.26.0'")
 
+# Générer un nom unique pour les logs TensorBoard
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+unique_id = str(uuid.uuid4())[:8]  # Prendre les 8 premiers caractères de l'UUID
+tensorboard_log_dir = f"./logs/run_{current_time}_{unique_id}"
+
 # Charger le dataset tokenisé
 print(f"Loading tokenized dataset from: {dataset_path}")
 tokenized_datasets = load_from_disk(dataset_path)
@@ -101,7 +108,7 @@ else:
 
 # Définir une stratégie d'apprentissage plus précise
 training_args = TrainingArguments(
-    output_dir="trained_llm",
+    output_dir=output_dir,
     eval_strategy="steps",
     save_strategy="steps",
     evaluation_strategy="steps",
@@ -116,7 +123,7 @@ training_args = TrainingArguments(
     lr_scheduler_type="polynomial",  # Meilleur scheduler pour une décroissance progressive
     save_total_limit=3,
     fp16=torch.cuda.is_available(),
-    logging_dir="./logs",
+    logging_dir=tensorboard_log_dir if has_tensorboard else "./logs",  # Utiliser le nom unique
     logging_steps=10,  # Logging plus fréquent
     load_best_model_at_end=True,
     metric_for_best_model="eval_loss",  # Utiliser explicitement eval_loss comme métrique
@@ -186,6 +193,10 @@ print(f"├─ Gradient accumulation steps: {training_args.gradient_accumulation
 print(f"├─ Weight decay: {training_args.weight_decay}")
 print(f"├─ Max gradient norm: {training_args.max_grad_norm}")
 print(f"└─ LR scheduler: {training_args.lr_scheduler_type}")
+if has_tensorboard:
+    print(f"└─ TensorBoard logs: {tensorboard_log_dir}")
+else:
+    print(f"└─ TensorBoard: désactivé")
 
 # Modification du try-except pour plus de clarté
 try:
@@ -243,6 +254,8 @@ try:
         "total_steps": trainer.state.global_step,
         "model_type": "gpt2",
         "base_model": "dbddv01/gpt2-french-small",
+        "tensorboard_log_dir": tensorboard_log_dir if has_tensorboard else None,
+        "training_date": current_time,
     }
 
     with open(f"{output_dir}/training_stats.json", "w") as f:

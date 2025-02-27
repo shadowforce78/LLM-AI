@@ -23,7 +23,9 @@ if not exist "data\tokenized_dataset" (
 )
 
 REM Création des dossiers de sortie
+cd "models\trained"
 if not exist "trained_llm" mkdir "trained_llm" 2>nul
+cd ..\..
 if not exist "models\trained" mkdir "models\trained" 2>nul
 
 echo Lancement de l'entrainement...
