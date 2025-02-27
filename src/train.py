@@ -54,9 +54,17 @@ except ImportError:
 # Vérifier les dépendances
 try:
     import accelerate
-
     if accelerate.__version__ < "0.26.0":
         raise ImportError("accelerate>=0.26.0 required")
+    
+    # Vérifier si tensorboard est installé
+    try:
+        import tensorboard
+        has_tensorboard = True
+    except ImportError:
+        has_tensorboard = False
+        print("TensorBoard n'est pas installé. Désactivation du reporting TensorBoard.")
+        print("Pour l'installer: pip install tensorboard")
 except ImportError:
     raise ImportError("Please run: pip install 'accelerate>=0.26.0'")
 
@@ -87,35 +95,39 @@ print(f"Using device: {device}")
 # Vérifier la mémoire GPU disponible pour ajuster le batch size
 if torch.cuda.is_available():
     gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3  # en GB
-    suggested_batch_size = max(4, min(16, int(gpu_mem/4)))  # 4GB par batch environ
+    suggested_batch_size = max(2, min(12, int(gpu_mem/5)))  # Batch size plus petit pour plus de précision
 else:
-    suggested_batch_size = 4
+    suggested_batch_size = 2  # Batch size réduit pour plus de précision
 
+# Définir une stratégie d'apprentissage plus précise
 training_args = TrainingArguments(
     output_dir="trained_llm",
     eval_strategy="steps",
     save_strategy="steps",
     evaluation_strategy="steps",
-    save_steps=50,  # Sauvegarde plus fréquente
-    eval_steps=50,
-    learning_rate=1e-5,  # Learning rate réduit pour plus de stabilité
+    save_steps=50,
+    eval_steps=25,  # Évaluation plus fréquente
+    learning_rate=5e-6,  # Learning rate plus faible pour plus de précision
     per_device_train_batch_size=suggested_batch_size,
     per_device_eval_batch_size=suggested_batch_size,
-    num_train_epochs=30,  # Plus d'epochs pour compenser le learning rate plus faible
-    weight_decay=0.02,  # Augmenté pour une meilleure régularisation
-    warmup_ratio=0.1,  # Utilisation d'un ratio plutôt qu'un nombre fixe de steps
-    lr_scheduler_type="cosine",  # Scheduler plus progressif
+    num_train_epochs=50,  # Plus d'époques pour atteindre une convergence plus fine
+    weight_decay=0.03,  # Augmentation de la régularisation
+    warmup_ratio=0.15,  # Plus de warmup
+    lr_scheduler_type="polynomial",  # Meilleur scheduler pour une décroissance progressive
     save_total_limit=3,
     fp16=torch.cuda.is_available(),
     logging_dir="./logs",
-    logging_steps=25,
+    logging_steps=10,  # Logging plus fréquent
     load_best_model_at_end=True,
-    metric_for_best_model="loss",
+    metric_for_best_model="eval_loss",  # Utiliser explicitement eval_loss comme métrique
     greater_is_better=False,
     remove_unused_columns=False,
     prediction_loss_only=True,
-    gradient_accumulation_steps=2,  # Accumulation des gradients pour simuler un batch size plus grand
-    gradient_checkpointing=True,  # Économie de mémoire
+    gradient_accumulation_steps=4,  # Augmenter l'accumulation pour simuler des batchs plus grands
+    gradient_checkpointing=True,
+    max_grad_norm=1.0,  # Gradient clipping pour stabiliser l'entraînement
+    group_by_length=True,  # Regrouper les séquences de longueurs similaires
+    report_to=["tensorboard"] if has_tensorboard else [],  # Activer TensorBoard uniquement s'il est installé
 )
 
 # Ajuster le data collator pour le batch size
@@ -125,6 +137,9 @@ data_collator = DataCollatorForLanguageModeling(
     pad_to_multiple_of=8 if torch.cuda.is_available() else None
 )
 
+# Configurer les callbacks en fonction des dépendances disponibles
+callbacks = [transformers.EarlyStoppingCallback(early_stopping_patience=5)]  # Early stopping toujours activé
+
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -132,6 +147,7 @@ trainer = Trainer(
     eval_dataset=eval_dataset,
     tokenizer=tokenizer,
     data_collator=data_collator,
+    callbacks=callbacks,
 )
 
 # Ajouter une fonction pour formater les nombres
@@ -167,7 +183,9 @@ print(f"├─ Batch size effectif: {suggested_batch_size * training_args.gradie
 print(f"├─ Learning rate: {training_args.learning_rate:.2e}")
 print(f"├─ Nombre d'epochs: {int(training_args.num_train_epochs)}")
 print(f"├─ Gradient accumulation steps: {training_args.gradient_accumulation_steps}")
-print(f"└─ Weight decay: {training_args.weight_decay}")
+print(f"├─ Weight decay: {training_args.weight_decay}")
+print(f"├─ Max gradient norm: {training_args.max_grad_norm}")
+print(f"└─ LR scheduler: {training_args.lr_scheduler_type}")
 
 # Modification du try-except pour plus de clarté
 try:
@@ -176,6 +194,9 @@ try:
     
     # Créer une classe de callback personnalisée pour le logging
     class CustomCallback(transformers.TrainerCallback):
+        def __init__(self):
+            self.best_loss = float('inf')
+            
         def on_epoch_end(self, args, state, control, **kwargs):
             if state.epoch.is_integer():
                 print(f"\n📈 Epoch {int(state.epoch)}/{int(training_args.num_train_epochs)}:")
@@ -188,8 +209,15 @@ try:
                     loss_str = f"{loss:.4f}" if isinstance(loss, (int, float)) else "N/A"
                     eval_loss_str = f"{eval_loss:.4f}" if isinstance(eval_loss, (int, float)) else "N/A"
                     
+                    # Tracking best loss
+                    if isinstance(eval_loss, (int, float)) and eval_loss < self.best_loss:
+                        self.best_loss = eval_loss
+                        improvement = "🔻 (nouveau meilleur!)"
+                    else:
+                        improvement = ""
+                    
                     print(f"├─ Loss: {loss_str}")
-                    print(f"└─ Eval Loss: {eval_loss_str}")
+                    print(f"└─ Eval Loss: {eval_loss_str} {improvement}")
 
     # Ajouter le callback au trainer
     trainer.add_callback(CustomCallback())

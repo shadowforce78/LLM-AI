@@ -5,3 +5,4 @@ trained_llm
 frwiki-latest-pages-articles.xml.bz2
 wiki_dataset.json
 trained
+logs
