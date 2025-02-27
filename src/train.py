@@ -2,9 +2,10 @@ import torch
 from transformers import Trainer, TrainingArguments, DataCollatorForLanguageModeling
 from datasets import load_from_disk
 from tokenizer import tokenizer
-from modele_base import *
+from models.base.modele_base import *
 import transformers # Importer pour éviter les erreurs de type
 import json
+import os
 
 # Vérifier les dépendances
 try:
@@ -16,7 +17,7 @@ except ImportError:
     raise ImportError("Please run: pip install 'accelerate>=0.26.0'")
 
 # Charger le dataset tokenisé
-tokenized_datasets = load_from_disk("tokenized_dataset")
+tokenized_datasets = load_from_disk("data/tokenized_dataset")
 
 # Ajuster le split en fonction de la taille du dataset
 n_samples = len(tokenized_datasets)
@@ -155,7 +156,8 @@ try:
     print("="*50)
     
     # Sauvegarder avec les métadonnées nécessaires
-    output_dir = "trained_llm"
+    output_dir = "models/trained"
+    os.makedirs(output_dir, exist_ok=True)
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
     model.config.save_pretrained(output_dir)

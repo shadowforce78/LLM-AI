@@ -3,21 +3,27 @@ import torch
 import re
 
 # Configuration
-MODEL_PATH = "trained_llm"  # Chemin du modèle entraîné
+MODEL_PATH = "models/trained"  # Chemin principal du modèle entraîné
+FALLBACK_PATH = "trained_llm"  # Chemin alternatif
 
 def init_model_and_tokenizer():
     """Initialise le modèle et le tokenizer"""
     print("⏳ Chargement du modèle et du tokenizer...")
     
     try:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+        # Vérifier le chemin principal d'abord
+        import os
+        model_path = MODEL_PATH if os.path.exists(MODEL_PATH) else FALLBACK_PATH
+        print(f"Utilisation du modèle depuis: {model_path}")
+        
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
         
         # Configuration des tokens spéciaux
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         
         model = AutoModelForCausalLM.from_pretrained(
-            MODEL_PATH,
+            model_path,
             trust_remote_code=True,
             local_files_only=True
         )

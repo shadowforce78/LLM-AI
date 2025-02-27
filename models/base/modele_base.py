@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM
 from config_base import MODEL_BASE
-from tokenizer import tokenizer
+from src.tokenizer import tokenizer
 
 def create_model():
     # Charger le modèle pré-entraîné français

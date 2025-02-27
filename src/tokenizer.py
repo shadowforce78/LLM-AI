@@ -1,7 +1,8 @@
 import json
+import os
 from transformers import AutoTokenizer
 from datasets import Dataset
-from config_base import MODEL_BASE, SPECIAL_TOKENS
+from models.base.config_base import MODEL_BASE, SPECIAL_TOKENS
 
 def create_tokenizer():
     # Initialiser le tokenizer
@@ -20,7 +21,7 @@ tokenizer = create_tokenizer()
 
 if __name__ == "__main__":
     # Charger les données JSON
-    with open("wiki_api_dataset.json", "r", encoding="utf-8") as f:
+    with open("data/raw/wiki_dataset.json", "r", encoding="utf-8") as f:
         data = json.load(f)
 
     # Transformer en dataset compatible HuggingFace
@@ -60,8 +61,12 @@ if __name__ == "__main__":
         desc="Tokenizing texts"
     )
 
+    # Ensure output directories exist
+    os.makedirs("data/tokenized_dataset", exist_ok=True)
+    os.makedirs("trained_llm", exist_ok=True)
+
     # Sauvegarder
-    tokenized_datasets.save_to_disk("tokenized_dataset")
+    tokenized_datasets.save_to_disk("data/tokenized_dataset")
     print("✅ Données tokenisées et sauvegardées !")
     tokenizer.save_pretrained("trained_llm")
     print("✅ Tokenizer sauvegardé !")

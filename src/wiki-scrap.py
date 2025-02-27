@@ -1,6 +1,7 @@
 import wikipediaapi
 import json
 from tqdm import tqdm
+import os
 
 user_agent = "WikiScraperBot/1.0 (https://github.com/shadowforce78/wiki-scraper; planque.adam@email.com)"
 wiki_wiki = wikipediaapi.Wikipedia(user_agent=user_agent, language="fr")
@@ -63,8 +64,11 @@ for category, articles in categories.items():
                     })
                     seen_titles.add(linked_page.title)
 
-# Sauvegarde
-with open("wiki_api_dataset.json", "w", encoding="utf-8") as f:
+# Ensure output directory exists
+os.makedirs("data/raw", exist_ok=True)
+
+# Sauvegarde dans data/raw
+with open("data/raw/wiki_dataset.json", "w", encoding="utf-8") as f:
     json.dump(dataset, f, ensure_ascii=False, indent=2)
 
 print(f"\nExtraction terminée ! {len(dataset)} articles extraits")
