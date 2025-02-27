@@ -45,7 +45,7 @@ categories = {
     ]
 }
 
-def get_linked_pages(page, depth=1, max_pages=5):
+def get_linked_pages(page, depth=1, max_pages=10):
     """Récupère récursivement les pages liées"""
     if depth <= 0 or not page.exists():
         return []
