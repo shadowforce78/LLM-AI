@@ -325,12 +325,6 @@ try:
     with open(f"{output_dir}/training_stats.json", "w") as f:
         json.dump(training_stats, f, indent=2)
 
-    # Afficher un message final plus informatif
-    print("\n📋 RÉCAPITULATIF:")
-    print(f"├─ Perte finale: {training_stats['final_loss']:.4f}")
-    print(f"├─ Meilleure perte d'évaluation: {training_stats['best_eval_loss']:.4f}")
-    print(f"└─ Nombre d'étapes complétées: {training_stats['total_steps']}")
-    
     print("\n✅ Modèle entraîné et sauvegardé dans: {output_dir}")
     
     if has_tensorboard:
