@@ -3,6 +3,6 @@ __pycache__
 tokenized_dataset
 trained_llm
 frwiki-latest-pages-articles.xml.bz2
-wiki_dataset.json
+data/raw/
 trained
 logs

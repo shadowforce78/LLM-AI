@@ -203,6 +203,16 @@ steps_per_epoch = math.ceil(
 )  # 4 = gradient_accumulation_steps
 total_training_steps = steps_per_epoch * epochs
 
+# Assurer que les steps soient compatibles pour load_best_model_at_end
+eval_steps = max(10, steps_per_epoch // 4)  # Évaluation fréquente
+# Assurer que save_steps est un multiple entier de eval_steps
+save_steps = math.ceil(steps_per_epoch / math.ceil(steps_per_epoch / eval_steps)) * eval_steps
+
+# Afficher les étapes pour faciliter le débogage
+print(f"Steps par epoch: {steps_per_epoch}")
+print(f"Eval steps: {eval_steps}")
+print(f"Save steps: {save_steps} (multiple de {eval_steps})")
+
 # Configuration optimisée de TensorBoard
 tensorboard_config = {
     "enabled": has_tensorboard,
@@ -233,8 +243,8 @@ training_args = TrainingArguments(
     eval_strategy="steps",
     save_strategy="steps",
     evaluation_strategy="steps",
-    save_steps=steps_per_epoch,
-    eval_steps=max(10, steps_per_epoch // 4),  # Évaluation plus fréquente
+    save_steps=save_steps,  # Utiliser la valeur calculée compatible
+    eval_steps=eval_steps,  # Utiliser la valeur calculée
     learning_rate=base_lr,
     per_device_train_batch_size=suggested_batch_size,
     per_device_eval_batch_size=suggested_batch_size,
@@ -247,7 +257,7 @@ training_args = TrainingArguments(
     save_total_limit=3,
     fp16=torch.cuda.is_available(),
     logging_dir=tensorboard_config["log_dir"],
-    logging_steps=max(10, steps_per_epoch // 10),  # Logging fréquent mais pas excessif
+    logging_steps=eval_steps,  # Utiliser la même valeur que eval_steps pour la cohérence
     load_best_model_at_end=True,
     metric_for_best_model="loss",  # Utiliser la perte d'entraînement comme métrique
     greater_is_better=False,
@@ -504,6 +514,8 @@ print(
 )
 print(f"├─ Learning rate: {training_args.learning_rate:.2e}")
 print(f"├─ Nombre d'epochs: {int(training_args.num_train_epochs)}")
+print(f"├─ Evaluation steps: {eval_steps}")
+print(f"├─ Save steps: {save_steps} (multiple de {eval_steps})")
 print(f"├─ Gradient accumulation: {training_args.gradient_accumulation_steps}")
 print(f"├─ Weight decay: {training_args.weight_decay}")
 print(f"├─ Scheduler: {training_args.lr_scheduler_type}")
