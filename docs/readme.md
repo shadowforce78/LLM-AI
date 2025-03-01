@@ -73,6 +73,45 @@ Tokenisation des données extraites pour les rendre exploitables par le modèle:
 python src/tokenizer.py
 ```
 
+## 🔤 Le Tokenizer
+
+Le tokenizer est un composant essentiel du pipeline de traitement du langage naturel. Il transforme le texte brut en tokens (unités lexicales) que le modèle peut comprendre.
+
+### Caractéristiques du tokenizer
+
+- **Base**: Adapté de GPT-2 français (dbddv01/gpt2-french-small)
+- **Vocabulaire**: ~50K tokens optimisés pour le français
+- **Tokens spéciaux**:
+  - `<bos>`: Marqueur de début de séquence
+  - `<eos>`: Marqueur de fin de séquence
+  - `<pad>`: Token de padding pour uniformiser les longueurs
+  - `<unk>`: Token pour les mots inconnus
+- **Stratégie de padding**: Côté gauche (`padding_side="left"`)
+- **Stratégie de troncature**: Côté gauche (`truncation_side="left"`)
+
+### Traitement des données
+
+Le tokenizer applique aux données brutes:
+1. **Normalisation**: Standardisation du texte
+2. **Segmentation**: Division en tokens pertinents
+3. **Transformation Q&A**: Formatage des données en paires question-réponse
+4. **Padding/Truncation**: Uniformisation des séquences à une longueur de 512 tokens
+
+### Exemple de tokenisation
+
+```python
+# Exemple de tokenisation d'une question
+question = "Quelle est la capitale de la France ?"
+tokens = tokenizer.encode(question)
+# => [1, 1158, 318, 287, 2255, 293, 287, 1567, 30, 13]
+
+# Détokenisation
+tokenizer.decode(tokens)
+# => "<bos>Quelle est la capitale de la France ?<eos>"
+```
+
+Cette approche permet au modèle de traiter efficacement le français avec ses particularités linguistiques.
+
 ### 3. Entraînement du modèle
 
 Processus d'entraînement optimisé avec suivi des métriques et sauvegarde des meilleurs checkpoints:
@@ -131,9 +170,10 @@ Au total, plus de 100 thèmes principaux sont explorés, chacun générant de no
 
 Le modèle est entraîné pour minimiser la perte tout en évitant le surapprentissage, avec des caractéristiques:
 
-- **Vocabulaire**: Tokenizer français spécialisé
+- **Vocabulaire**: Tokenizer français spécialisé avec ~50K tokens
 - **Nombre de paramètres**: 124M (base GPT-2 small)
-- **Contexte**: 1024 tokens
+- **Longueur maximale de séquence**: 512 tokens en entraînement, extensible jusqu'à 1024 en inférence
+- **Format d'entrée**: Paires de question-réponse formatées avec tokens spéciaux
 - **Capacité de génération**: Textes cohérents et informatifs en français
 
 ## 🤝 Contribution
