@@ -206,7 +206,9 @@ total_training_steps = steps_per_epoch * epochs
 # Assurer que les steps soient compatibles pour load_best_model_at_end
 eval_steps = max(10, steps_per_epoch // 4)  # Évaluation fréquente
 # Assurer que save_steps est un multiple entier de eval_steps
-save_steps = math.ceil(steps_per_epoch / math.ceil(steps_per_epoch / eval_steps)) * eval_steps
+save_steps = (
+    math.ceil(steps_per_epoch / math.ceil(steps_per_epoch / eval_steps)) * eval_steps
+)
 
 # Afficher les étapes pour faciliter le débogage
 print(f"Steps par epoch: {steps_per_epoch}")

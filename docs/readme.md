@@ -1,14 +1,15 @@
 # LLM-AI French Language Model
 
-Un modèle de langage en français basé sur GPT-2, entraîné sur des articles Wikipédia.
+Un modèle de langage en français basé sur GPT-2, entraîné sur un vaste corpus d'articles Wikipédia pour produire des réponses pertinentes et informatives.
 
 ## 🌟 Caractéristiques
 
 - Modèle basé sur GPT-2 français (dbddv01/gpt2-french-small)
-- Fine-tuning sur des articles Wikipédia en français
-- Support des conversations et génération de texte
-- Tokenizer optimisé pour le français
-- Gestion automatique des données d'entraînement
+- Entraînement avancé sur un large corpus d'articles Wikipédia en français
+- Traitement multiprocessing optimisé pour l'extraction de données
+- Assistant IA simple qui s'appuie uniquement sur ses connaissances apprises
+- Exploration approfondie de Wikipédia avec 6 catégories thématiques
+- Support multi-plateforme (Windows, Linux, macOS)
 
 ## 🚀 Installation
 
@@ -24,7 +25,7 @@ source .venv/bin/activate  # Linux/Mac
 .venv\Scripts\activate  # Windows
 
 # Installer les dépendances
-pip install transformers torch datasets wikipediaapi tqdm accelerate
+pip install transformers torch datasets wikipediaapi tqdm accelerate tensorboard
 ```
 
 ## 📁 Structure du Projet
@@ -33,89 +34,111 @@ pip install transformers torch datasets wikipediaapi tqdm accelerate
 LLM-AI/
 ├── data/
 │   ├── raw/              # Données brutes extraites de Wikipédia
-│   ├── processed/        # Données traitées prêtes pour l'entraînement
-├── scripts/
-│   ├── wiki-scrap.py     # Extraction des données Wikipedia
-│   ├── tokenizer.py      # Configuration du tokenizer
-│   ├── train.py          # Script d'entraînement
-│   ├── test.py           # Script de test
+│   └── tokenized_dataset/ # Données tokenisées prêtes pour l'entraînement
+├── src/
+│   ├── wiki-scrap.py     # Extraction massive de données Wikipedia
+│   ├── tokenizer.py      # Configuration et entraînement du tokenizer
+│   ├── train.py          # Script d'entraînement optimisé
+│   └── ai_assistant.py   # Interface utilisateur pour interagir avec le modèle
 ├── models/
-│   ├── base_model/       # Modèle de base non entraîné
-│   ├── trained_model/    # Modèle entraîné
-└── notebooks/            # Notebooks Jupyter pour l'exploration et l'analyse
+│   ├── base/             # Configuration du modèle de base
+│   └── trained/          # Modèle entraîné (résultat final)
+├── scripts/              # Scripts utilitaires pour faciliter l'utilisation
+└── docs/                 # Documentation du projet
 ```
 
 ## 🔧 Utilisation
 
-1. **Extraction des données** :
+Le projet propose une approche complète pour créer un modèle LLM personnalisé en français:
+
+### 1. Extraction de données (Scraping)
+
+Le script collecte automatiquement un vaste corpus d'articles Wikipédia à travers 6 catégories principales:
+- Base (France, villes, géographie...)
+- Tech (IA, informatique, réseaux...)
+- Sciences (physique, biologie, mathématiques...)
+- Culture (arts, musique, littérature...)
+- Géographie (continents, pays, formations géographiques...)
+- Histoire (périodes, événements, personnalités...)
 
 ```bash
-python scripts/wiki-scrap.py
+python src/wiki-scrap.py
 ```
 
-2. **Préparation des tokens** :
+### 2. Préparation des données
+
+Tokenisation des données extraites pour les rendre exploitables par le modèle:
 
 ```bash
-python scripts/tokenizer.py
+python src/tokenizer.py
 ```
 
-3. **Entraînement du modèle** :
+### 3. Entraînement du modèle
+
+Processus d'entraînement optimisé avec suivi des métriques et sauvegarde des meilleurs checkpoints:
 
 ```bash
-python scripts/train.py
+python src/train.py
 ```
 
-4. **Test du modèle** :
+### 4. Utilisation du modèle
+
+L'assistant IA peut être utilisé via l'interface en ligne de commande:
 
 ```bash
-python scripts/test.py
+python src/ai_assistant.py
+# ou
+scripts/use.bat  # Sur Windows
 ```
 
-## 📊 Exemple d'utilisation
+## 📊 Fonctionnalités avancées
 
-```python
-from transformers import AutoTokenizer, AutoModelForCausalLM
+### Extraction parallélisée des données
 
-# Charger le modèle et le tokenizer
-tokenizer = AutoTokenizer.from_pretrained("models/trained_model")
-model = AutoModelForCausalLM.from_pretrained("models/trained_model")
+- **Multiprocessing** sur Linux/Unix et **Multithreading** sur Windows
+- Exploration multi-niveaux des articles liés
+- Échantillonnage aléatoire pour diversifier les sources
+- Sauvegardes intermédiaires pour éviter la perte de données
 
-# Générer du texte
-prompt = "Quelle est la capitale de la France ?"
-inputs = tokenizer(prompt, return_tensors="pt")
-outputs = model.generate(**inputs, max_length=100)
-response = tokenizer.decode(outputs[0])
-print(response)
-```
+### Entraînement optimisé
 
-## 🎯 Paramètres d'entraînement
+- Ajustement automatique des hyperparamètres selon la taille du dataset
+- Monitoring avec TensorBoard
+- Détection et sauvegarde des meilleurs modèles
+- Early stopping intelligent avec période minimale garantie
+- Visualisation ASCII de l'évolution de la perte en temps réel
 
-- Taille du modèle : 124M paramètres
-- Epochs : 10
-- Batch size : 4
-- Learning rate : 5e-5
-- Warmup steps : 500
-- Beam search : 5 beams
+### Assistant IA minimaliste
 
-## 📝 Notes
+- Interface simple en ligne de commande
+- Génération de réponses basées uniquement sur les connaissances apprises
+- Support des questions factuelles, opinions et instructions
 
-- Le modèle utilise GPT-2 comme architecture de base
-- Les données d'entraînement sont extraites de Wikipédia
-- Le tokenizer est optimisé pour le français
-- Le modèle supporte les tokens spéciaux (BOS, EOS, PAD)
+## 📚 Sources de données
 
-## 📚 Données
+L'assistant est entraîné sur les catégories d'articles Wikipédia suivantes:
 
-Les catégories d'articles Wikipédia utilisées :
+- **Base**: France, Paris, Lyon, Marseille, Bordeaux, Toulouse, Strasbourg, et bien d'autres articles liés à la géographie française, l'histoire française et la culture française
+- **Tech**: Intelligence artificielle, apprentissage automatique, deep learning, réseaux informatiques, cybersécurité, blockchain, cloud computing...
+- **Sciences**: Biologie, chimie, physique, mathématiques, astronomie, génétique, neurosciences, médecine...
+- **Culture**: Musique, cinéma, littérature, peinture, sculpture, danse, architecture, jeux vidéo...
+- **Géographie**: Continents, pays, montagnes, océans, mers, fleuves, climats, déserts...
+- **Histoire**: Antiquité, Moyen Âge, Renaissance, guerres mondiales, civilisations, empires...
 
-- Base : France, Paris, Lyon, Marseille, Bordeaux, Toulouse, Strasbourg, Géographie de la France, Histoire de France, Culture française
-- Tech : Intelligence artificielle, Apprentissage automatique, Deep learning, Traitement automatique des langues, Apprentissage profond, Réseau de neurones artificiels, Transformateur (apprentissage profond), Big data, Science des données, Informatique quantique
-- Sciences : Biologie, Chimie, Physique, Mathématiques, Astronomie, Géologie, Science, Médecine, Psychologie, Sociologie
-- Culture : Musique, Cinéma, Littérature, Peinture, Sculpture, Danse, Théâtre, Photographie, Art, Culture
+Au total, plus de 100 thèmes principaux sont explorés, chacun générant de nombreux articles liés.
+
+## 🔍 Performances
+
+Le modèle est entraîné pour minimiser la perte tout en évitant le surapprentissage, avec des caractéristiques:
+
+- **Vocabulaire**: Tokenizer français spécialisé
+- **Nombre de paramètres**: 124M (base GPT-2 small)
+- **Contexte**: 1024 tokens
+- **Capacité de génération**: Textes cohérents et informatifs en français
 
 ## 🤝 Contribution
 
-Les contributions sont les bienvenues ! N'hésitez pas à :
+Les contributions sont les bienvenues! N'hésitez pas à :
 
 1. Fork le projet
 2. Créer une branche (`git checkout -b feature/amelioration`)
@@ -129,6 +152,7 @@ Ce projet est sous licence MIT. Voir le fichier `LICENSE` pour plus de détails.
 
 ## ⚠️ Limitations
 
-- Le modèle est entraîné sur un nombre limité d'articles
-- Les performances peuvent varier selon la complexité des requêtes
-- L'utilisation de CPU peut ralentir significativement l'inférence
+- Le modèle est limité aux informations contenues dans son corpus d'entraînement
+- L'assistant ne possède pas de connaissances sur les événements postérieurs à son entraînement
+- Comme tous les modèles de langage, il peut parfois générer des informations incorrectes
+- Les performances dépendent significativement du matériel utilisé (GPU recommandé)
