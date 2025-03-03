@@ -1,5 +1,6 @@
 __pycache__
 .venv
+.venv-linux
 tokenized_dataset
 trained_llm
 frwiki-latest-pages-articles.xml.bz2
