@@ -11,6 +11,7 @@ from collections import Counter
 
 # Simplification complète de l'assistant pour ne compter que sur le modèle entraîné
 
+
 def get_model_paths():
     """Retourne une liste des chemins possibles pour le modèle, en privilégiant le dossier principal"""
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -302,17 +303,19 @@ def generate_response(
     model,
     tokenizer,
     analyzer,
-    max_length=250,  # Longueur augmentée pour permettre des réponses plus complètes
-    temperature=0.85,  # Température plus élevée pour plus de créativité
-    top_p=0.92,
-    repetition_penalty=1.1,
+    max_length=150,  # Réduit pour des réponses plus concises
+    temperature=0.3,  # Température réduite pour plus de focus
+    top_p=0.85,
+    repetition_penalty=1.2,
 ):
     """Génère une réponse basée uniquement sur le modèle entraîné"""
     # Analyser la question avec le réseau de neurones
     question_type, confidence = analyzer.predict(prompt, tokenizer)
-    
-    # Prompt simple et direct, sans guidage
-    context = "Réponds à cette question: "
+
+    # Améliorer le prompt avec plus de structure et de contexte
+
+    context = "Réponds de façon factuelle et concise à cette question. "
+
     prompt_text = prompt.strip()
     suffix = "\nRéponse: "
 
@@ -322,13 +325,13 @@ def generate_response(
     # Tokenize et convertir en tensor
     inputs = tokenizer(full_prompt, return_tensors="pt").to(model.device)
 
-    # Paramètres de génération uniformes
+    # Paramètres de génération ajustés pour plus de précision
     gen_kwargs = {
         "max_length": max_length + len(inputs["input_ids"][0]),
         "temperature": temperature,
         "do_sample": True,
         "top_p": top_p,
-        "top_k": 40,
+        "top_k": 20,  # Réduit pour plus de précision
         "repetition_penalty": repetition_penalty,
         "no_repeat_ngram_size": 3,
         "num_beams": 3,
@@ -336,7 +339,7 @@ def generate_response(
     }
 
     # Générer la réponse avec le modèle
-    set_seed(random.randint(1, 1000))
+    set_seed(42)  # Seed fixe pour la cohérence
     output_sequences = model.generate(**inputs, **gen_kwargs)
 
     # Décoder et extraire la réponse
@@ -348,13 +351,20 @@ def generate_response(
     except:
         response = generated_text.strip()
 
-    # Nettoyage minimal de la réponse
-    response = clean_response(response)
-    
+    # Nettoyage amélioré de la réponse
+    response = clean_response(response, prompt)
+
     return response, question_type
 
-def clean_response(response):
-    """Nettoie la réponse des artefacts, avec un minimum d'intervention"""
+
+def clean_response(response, original_question):
+    """Nettoie la réponse des artefacts avec un nettoyage plus agressif"""
+
+    # Éliminer les références bibliographiques et citations
+    response = re.sub(r"\([^)]*\)", "", response)
+    response = re.sub(r"\[[^\]]*\]", "", response)
+    response = re.sub(r"ISBN [0-9\-]+", "", response)
+
     # Éliminer les phrases avec des mots clés problématiques
     problem_keywords = [
         "Naissances",
@@ -362,6 +372,11 @@ def clean_response(response):
         "Catégorie:",
         "Notes",
         "Références",
+        "présentation en ligne",
+        "Jean-Pierre",
+        "Jean-Paul",
+        "coll.",
+        "Presses universitaires",
     ]
 
     # Diviser en phrases
@@ -380,13 +395,18 @@ def clean_response(response):
                 cleaned_sentences.append(current_sentence)
 
     cleaned_response = "".join(cleaned_sentences)
-    
-    # Nettoyage minimal
+
+    # Nettoyage supplémentaire
     cleaned_response = re.sub(r"\[\d+\]", "", cleaned_response)
     cleaned_response = re.sub(r"\n+", " ", cleaned_response)
     cleaned_response = re.sub(r" +", " ", cleaned_response)
 
+    # Si la réponse est trop courte ou vide après nettoyage, donner une réponse par défaut
+    if len(cleaned_response.strip()) < 10:
+        return "Je n'ai pas assez d'informations pour répondre précisément à cette question."
+
     return cleaned_response.strip()
+
 
 def main():
     """Point d'entrée principal de l'assistant"""
@@ -436,9 +456,11 @@ def main():
         except Exception as e:
             print(f"❌ Erreur lors de la génération de la réponse: {str(e)}")
             import traceback
+
             traceback.print_exc()
 
     print("\nAu revoir! 👋")
+
 
 if __name__ == "__main__":
     main()
