@@ -54,16 +54,88 @@ except ImportError:
         sys.path.append(current_dir)
         from tokenizer import tokenizer
 
+# Configuration du modèle à utiliser (ajout)
+MODEL_SIZE = "medium"  # "small", "medium", "large", or "xl"
+MODEL_CONFIG = {
+    "small": {
+        "base_model": "dbddv01/gpt2-french-small",  # ~124M paramètres
+        "n_head": 12,
+        "n_layer": 12,
+        "n_embd": 768
+    },
+    "medium": {
+        "base_model": "antoiloui/belgpt2    ",  # ~355M paramètres (modèle français plus grand)
+        "n_head": 16,
+        "n_layer": 24,
+        "n_embd": 1024
+    },
+    "large": {
+        "base_model": "gpt2-large",  # ~774M paramètres (modèle anglais à adapter)
+        "n_head": 20,
+        "n_layer": 36,
+        "n_embd": 1280
+    },
+    "xl": {
+        "base_model": "gpt2-xl",  # ~1.5B paramètres (modèle anglais à adapter)
+        "n_head": 25,
+        "n_layer": 48,
+        "n_embd": 1600
+    }
+}
+
 # Import model after path is configured
 try:
-    from models.base.modele_base import model
-except ImportError:
+    # Import model after path is configured
+    config = MODEL_CONFIG[MODEL_SIZE]
+    
+    # Vérifie si nous utilisons un modèle préentraîné existant ou si nous créons une nouvelle configuration
+    print(f"\n🔄 Chargement/Création du modèle de taille {MODEL_SIZE} (~{config['n_layer']*config['n_head']*config['n_embd']/1_000_000:.0f}M paramètres)...")
+    
     try:
-        sys.path.append(os.path.join(project_root, "models", "base"))
-        from models.base.modele_base import model
-    except ImportError:
-        print("Failed to import model. Please check paths and module structure.")
-        exit(1)
+        # Essayer de charger le modèle préentraîné
+        from transformers import GPT2LMHeadModel, GPT2Config
+        
+        # Charger le modèle avec la configuration spécifique
+        if MODEL_SIZE in ["large", "xl"]:
+            # Pour les très grands modèles, les charger avec 16-bit pour économiser la mémoire
+            model = GPT2LMHeadModel.from_pretrained(
+                config["base_model"],
+                revision="float16",
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+            )
+            print("⚠️ Modèle chargé en precision mixte pour économiser la mémoire")
+        else:
+            model = GPT2LMHeadModel.from_pretrained(config["base_model"])
+        
+        # Adapter les embeddings au tokenizer si nécessaire
+        model.resize_token_embeddings(len(tokenizer))
+        print(f"✅ Modèle {config['base_model']} chargé avec succès")
+        
+    except Exception as e:
+        print(f"❌ Erreur lors du chargement du modèle préentraîné: {str(e)}")
+        print("🔄 Création d'un nouveau modèle avec la configuration spécifiée...")
+        
+        # Créer une configuration pour un nouveau modèle
+        model_config = GPT2Config(
+            vocab_size=len(tokenizer),
+            n_positions=1024,
+            n_ctx=1024,
+            n_embd=config["n_embd"],
+            n_layer=config["n_layer"],
+            n_head=config["n_head"],
+            bos_token_id=tokenizer.bos_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+        
+        # Créer un nouveau modèle avec cette configuration
+        model = GPT2LMHeadModel(model_config)
+        print("✅ Nouveau modèle créé avec la configuration spécifiée")
+        
+except Exception as e:
+    print(f"❌ Erreur lors de la configuration du modèle: {str(e)}")
+    import traceback
+    traceback.print_exc()
+    exit(1)
 
 # Vérifier les dépendances
 try:
@@ -173,18 +245,26 @@ print(f"Using device: {device}")
 # Optimiser le batch size en fonction de la longueur des séquences
 if torch.cuda.is_available():
     gpu_mem = torch.cuda.get_device_properties(0).total_memory / 1024**3
-
-    # Ajuster le batch size en fonction de la complexité du dataset
+    
+    # Facteurs de réduction du batch size selon la taille du modèle
+    model_size_factor = {
+        "small": 1.0,
+        "medium": 0.5,  # Réduire de moitié pour medium
+        "large": 0.25,  # Réduire à 1/4 pour large
+        "xl": 0.125     # Réduire à 1/8 pour xl
+    }.get(MODEL_SIZE, 1.0)
+    
+    # Ajuster le batch size en fonction de la complexité du dataset et de la taille du modèle
     if dataset_complexity["is_complex"]:
         suggested_batch_size = max(
-            1, min(6, int(gpu_mem / 8))
-        )  # Plus petit pour séquences longues
+            1, min(6, int(gpu_mem / 8 * model_size_factor))
+        )
     else:
         suggested_batch_size = max(
-            2, min(16, int(gpu_mem / 4))
-        )  # Plus grand pour séquences courtes
+            1, min(16, int(gpu_mem / 4 * model_size_factor))
+        )
 else:
-    suggested_batch_size = 2
+    suggested_batch_size = 1  # Réduire à 1 pour CPU avec de grands modèles
 
 # Déterminer le learning rate optimal en fonction de la taille du dataset
 if n_samples < 100:
@@ -239,6 +319,9 @@ def setup_multiprocessing():
 # Déterminer si on peut utiliser des workers en toute sécurité
 can_use_workers = setup_multiprocessing()
 
+# Ajouter une configuration de gradient checkpointing pour les grands modèles
+use_gradient_checkpointing = MODEL_SIZE in ["medium", "large", "xl"]
+
 # Définir une stratégie d'apprentissage hautement optimisée pour réduire la perte
 training_args = TrainingArguments(
     output_dir=output_dir,
@@ -257,7 +340,8 @@ training_args = TrainingArguments(
     ),  # Plus long warmup pour petits datasets
     lr_scheduler_type="cosine_with_restarts",  # Scheduler avec restarts pour sortir des minima locaux
     save_total_limit=3,
-    fp16=torch.cuda.is_available(),
+    fp16=torch.cuda.is_available() and MODEL_SIZE != "small",  # Mixed precision pour économiser la mémoire
+    half_precision_backend="auto",
     logging_dir=tensorboard_config["log_dir"],
     logging_steps=eval_steps,  # Utiliser la même valeur que eval_steps pour la cohérence
     load_best_model_at_end=True,
@@ -265,10 +349,8 @@ training_args = TrainingArguments(
     greater_is_better=False,
     remove_unused_columns=False,
     prediction_loss_only=True,
-    gradient_accumulation_steps=4,  # Simuler des batchs plus grands
-    gradient_checkpointing=(
-        True if dataset_complexity["is_complex"] else False
-    ),  # Selon complexité
+    gradient_accumulation_steps=max(1, 4 // suggested_batch_size) * 2,  # Ajuster dynamiquement
+    gradient_checkpointing=use_gradient_checkpointing,  # Activer pour les grands modèles
     max_grad_norm=1.0,  # Clipping des gradients
     group_by_length=True,  # Optimisation de performance
     report_to=["tensorboard"] if tensorboard_config["enabled"] else [],
@@ -523,6 +605,14 @@ print(f"├─ Weight decay: {training_args.weight_decay}")
 print(f"├─ Scheduler: {training_args.lr_scheduler_type}")
 print(f"├─ Warmup ratio: {training_args.warmup_ratio}")
 print(f"└─ Steps total: ~{total_training_steps}")
+
+# Affichage des informations sur le modèle
+print("\n📊 INFORMATIONS DU MODÈLE:")
+print(f"├─ Taille: {MODEL_SIZE.upper()}")
+print(f"├─ Nombre de couches: {config['n_layer']}")
+print(f"├─ Nombre de têtes d'attention: {config['n_head']}")
+print(f"├─ Dimension des embeddings: {config['n_embd']}")
+print(f"└─ Paramètres totaux: ~{sum(p.numel() for p in model.parameters())/1_000_000:.1f}M")
 
 # Modification du try-except pour plus de clarté
 try:
