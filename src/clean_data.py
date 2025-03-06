@@ -34,7 +34,7 @@ for root, dirs, files in os.walk(input_dir):
         rel_path = os.path.relpath(root, input_dir)
         output_subdir = os.path.join(output_dir, rel_path)
         os.makedirs(output_subdir, exist_ok=True)
-        
+
         # Obtenir le nom de base du fichier sans extension et ajouter l'extension .json
         filename_base = os.path.splitext(file)[0]
         output_file_path = os.path.join(output_subdir, f"{filename_base}.json")
