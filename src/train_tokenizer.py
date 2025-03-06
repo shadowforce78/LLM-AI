@@ -11,30 +11,46 @@ OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data", "tokenized")
 VOCAB_SIZE = 32_000  # Taille du vocabulaire à définir
 
 # 📌 Charger les textes
-print(f"📂 Chargement des textes depuis {DATA_DIR}...")
+print(f"📂 Chargement des textes depuis {DATA_DIR} et ses sous-dossiers...")
 corpus = []
-for file_name in os.listdir(DATA_DIR):
-    file_path = os.path.join(DATA_DIR, file_name)
-    # Vérifier si c'est un fichier (et non un répertoire) et qu'il a une extension .json
-    if os.path.isfile(file_path) and file_name.endswith('.json'):
-        try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for article in data:
-                    corpus.append(article["text"])
-            print(f"✓ Fichier {file_name} chargé avec succès")
-        except PermissionError:
-            print(f"⚠️ Erreur de permission: Impossible de lire {file_name}")
-        except json.JSONDecodeError:
-            print(f"⚠️ Erreur: {file_name} n'est pas un fichier JSON valide")
-        except Exception as e:
-            print(f"⚠️ Erreur lors du chargement de {file_name}: {str(e)}")
+file_count = 0
+
+# Fonction pour parcourir les dossiers de manière récursive
+def load_files_from_dir(directory):
+    global corpus, file_count
+    
+    for item_name in os.listdir(directory):
+        item_path = os.path.join(directory, item_name)
+        
+        # Si c'est un dossier, on le parcourt récursivement
+        if os.path.isdir(item_path):
+            print(f"📁 Exploration du sous-dossier: {item_name}")
+            load_files_from_dir(item_path)
+        
+        # Si c'est un fichier JSON, on le traite
+        elif os.path.isfile(item_path) and item_name.endswith('.json'):
+            try:
+                with open(item_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for article in data:
+                        corpus.append(article["text"])
+                file_count += 1
+                print(f"✓ Fichier {item_name} dans {os.path.basename(directory)} chargé avec succès")
+            except PermissionError:
+                print(f"⚠️ Erreur de permission: Impossible de lire {item_path}")
+            except json.JSONDecodeError:
+                print(f"⚠️ Erreur: {item_path} n'est pas un fichier JSON valide")
+            except Exception as e:
+                print(f"⚠️ Erreur lors du chargement de {item_path}: {str(e)}")
+
+# Lancer le chargement des fichiers
+load_files_from_dir(DATA_DIR)
 
 if not corpus:
     print("⚠️ Attention: Aucun texte n'a été chargé. Vérifiez le contenu du dossier.")
     exit(1)
 else:
-    print(f"✅ {len(corpus)} articles chargés avec succès")
+    print(f"✅ {len(corpus)} articles chargés depuis {file_count} fichiers avec succès")
 
 # 🧩 Définition du tokenizer WordPiece
 tokenizer = Tokenizer(models.BPE())  # Peut être changé en Unigram ou WordPiece
