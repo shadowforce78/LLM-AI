@@ -11,12 +11,30 @@ OUTPUT_DIR = os.path.join(PROJECT_ROOT, "data", "tokenized")
 VOCAB_SIZE = 32_000  # Taille du vocabulaire à définir
 
 # 📌 Charger les textes
+print(f"📂 Chargement des textes depuis {DATA_DIR}...")
 corpus = []
-for file in os.listdir(DATA_DIR):
-    with open(os.path.join(DATA_DIR, file), "r", encoding="utf-8") as f:
-        data = json.load(f)
-        for article in data:
-            corpus.append(article["text"])
+for file_name in os.listdir(DATA_DIR):
+    file_path = os.path.join(DATA_DIR, file_name)
+    # Vérifier si c'est un fichier (et non un répertoire) et qu'il a une extension .json
+    if os.path.isfile(file_path) and file_name.endswith('.json'):
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                for article in data:
+                    corpus.append(article["text"])
+            print(f"✓ Fichier {file_name} chargé avec succès")
+        except PermissionError:
+            print(f"⚠️ Erreur de permission: Impossible de lire {file_name}")
+        except json.JSONDecodeError:
+            print(f"⚠️ Erreur: {file_name} n'est pas un fichier JSON valide")
+        except Exception as e:
+            print(f"⚠️ Erreur lors du chargement de {file_name}: {str(e)}")
+
+if not corpus:
+    print("⚠️ Attention: Aucun texte n'a été chargé. Vérifiez le contenu du dossier.")
+    exit(1)
+else:
+    print(f"✅ {len(corpus)} articles chargés avec succès")
 
 # 🧩 Définition du tokenizer WordPiece
 tokenizer = Tokenizer(models.BPE())  # Peut être changé en Unigram ou WordPiece
