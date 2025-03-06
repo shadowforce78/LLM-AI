@@ -64,4 +64,4 @@ for root, dirs, files in os.walk(input_dir):
         except Exception as e:
             print(f"Erreur lors du traitement de {input_file_path}: {e}")
 
-print("✅ Nettoyage terminé !")
+print("✅ Nettoyage des data terminé !")
