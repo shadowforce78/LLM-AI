@@ -52,13 +52,47 @@ if not corpus:
 else:
     print(f"✅ {len(corpus)} articles chargés depuis {file_count} fichiers avec succès")
 
-# 🧩 Définition du tokenizer WordPiece
-tokenizer = Tokenizer(models.BPE())  # Peut être changé en Unigram ou WordPiece
-tokenizer.pre_tokenizer = pre_tokenizers.Whitespace()
+# 🧩 Définition du tokenizer - Utilisation du modèle BPE qui est plus flexible
+tokenizer = Tokenizer(models.BPE(unk_token="[UNK]"))
+
+# Configuration du pre-tokenizer pour un meilleur découpage initial
+# Passage de add_prefix_space à True
+tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=True)
+
+# Définition du décodeur correspondant au pre-tokenizer
+from tokenizers.decoders import ByteLevel as ByteLevelDecoder
+tokenizer.decoder = ByteLevelDecoder()
+
+# Normalisation améliorée pour assurer le lowercasing et la suppression des accents
+from tokenizers.normalizers import Sequence, NFD, Lowercase, StripAccents
+tokenizer.normalizer = Sequence([NFD(), Lowercase(), StripAccents()])
 
 # 📚 Entraînement du tokenizer
-trainer = trainers.BpeTrainer(vocab_size=VOCAB_SIZE, special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]"])
+trainer = trainers.BpeTrainer(
+    vocab_size=VOCAB_SIZE, 
+    special_tokens=["[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]", "[BOS]", "[EOS]"],
+    min_frequency=2,
+    show_progress=True
+)
+print(f"🔍 Entraînement du tokenizer (modèle BPE) avec {len(corpus)} textes...")
 tokenizer.train_from_iterator(corpus, trainer)
+
+# Test rapide de validation
+test_text = "Bonjour, je suis un texte d'exemple."
+encoded = tokenizer.encode(test_text)
+decoded = tokenizer.decode(encoded.ids)
+print("\n🧪 Test de validation:")
+print(f"  Texte original: \"{test_text}\"")
+print(f"  Tokens: {encoded.tokens}")
+print(f"  Texte décodé: \"{decoded}\"")
+print("  Note: Le tokenizer convertit le texte en lowercase et ajoute un espace initial.")
+
+# Correction de la validation pour tenir compte de l'espace initial et du lowercase
+expected = " " + test_text.lower()
+is_match = decoded == expected
+print(f"  Correspondance ajustée: {'✅ OK' if is_match else '❌ Différent'}")
+if not is_match:
+    print(f"  Texte attendu après ajustements: \"{expected}\"")
 
 # 📂 Sauvegarde du tokenizer
 os.makedirs(OUTPUT_DIR, exist_ok=True)
