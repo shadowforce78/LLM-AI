@@ -4,13 +4,14 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from transformers import GPT2Config
-from dataset import TextDataset
+from dataset import TextDataset, collate_batch
 from model import CustomGPT
 
 # 📂 Chemins des fichiers
-TRAIN_DATA_PATH = "data/tokenized/train.json"
-VAL_DATA_PATH = "data/tokenized/val.json"
-MODEL_SAVE_PATH = "models/trained/gpt-small.pth"
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+TRAIN_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "tokenized", "train.json")
+VAL_DATA_PATH = os.path.join(PROJECT_ROOT, "data", "tokenized", "val.json")
+MODEL_SAVE_PATH = os.path.join(PROJECT_ROOT, "models", "gpt2_custom.pth")
 
 # 📌 Hyperparamètres
 BATCH_SIZE = 8
@@ -22,8 +23,9 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 train_dataset = TextDataset(TRAIN_DATA_PATH)
 val_dataset = TextDataset(VAL_DATA_PATH)
 
-train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+# Use custom collate function to handle variable sequence lengths
+train_dataloader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_batch)
+val_dataloader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_batch)
 
 # 📌 Initialiser le modèle
 config = GPT2Config(
