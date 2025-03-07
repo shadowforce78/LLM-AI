@@ -7,10 +7,18 @@ class CustomGPT(PreTrainedModel):
         super().__init__(config)
         self.model = GPT2Model(config)  # Modèle GPT-2 de base
         self.lm_head = nn.Linear(config.hidden_size, config.vocab_size, bias=False)  # Tête de prédiction
+        self.config = config  # Store config for easier access
 
     def forward(self, input_ids, attention_mask=None):
+        # Get outputs from the base model
         outputs = self.model(input_ids, attention_mask=attention_mask)
-        return self.lm_head(outputs.last_hidden_state)
+        hidden_states = outputs.last_hidden_state  # Shape: [batch_size, seq_len, hidden_size]
+        
+        # Apply the language model head
+        logits = self.lm_head(hidden_states)  # Shape: [batch_size, seq_len, vocab_size]
+        
+        # Return logits as the main output
+        return logits
 
 # 📌 Configuration du modèle GPT-Small (~125M params)
 if __name__ == "__main__":
