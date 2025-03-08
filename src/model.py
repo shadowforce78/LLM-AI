@@ -20,15 +20,16 @@ class CustomGPT(PreTrainedModel):
         # Return logits as the main output
         return logits
 
-# 📌 Configuration du modèle GPT-Small (~125M params)
+# 📌 Configuration du modèle GPT-Medium (~125M params)
 if __name__ == "__main__":
     config = GPT2Config(
         vocab_size=32000,  # Taille du vocabulaire (doit correspondre au tokenizer)
-        n_embd=512,        # Taille des embeddings
-        n_layer=6,         # Nombre de couches
-        n_head=8,          # Nombre de têtes d'attention
+        n_embd=768,        # Taille des embeddings (augmentée de 512 à 768)
+        n_layer=12,        # Nombre de couches (augmenté de 6 à 12)
+        n_head=12,         # Nombre de têtes d'attention (augmenté de 8 à 12)
     )
 
     # 🔥 Instanciation du modèle
     model = CustomGPT(config)
-    print(f"✅ Modèle GPT-Small initialisé avec {sum(p.numel() for p in model.parameters())} paramètres.")
+    total_params = sum(p.numel() for p in model.parameters())
+    print(f"✅ Modèle GPT-Medium initialisé avec {total_params:,} paramètres (~{total_params/1_000_000:.1f}M).")

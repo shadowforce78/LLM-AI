@@ -77,16 +77,16 @@ log_message(
 # 📌 Initialiser le modèle
 config = GPT2Config(
     vocab_size=32000,
-    n_embd=512,
-    n_layer=6,
-    n_head=8,
+    n_embd=768,        # Taille des embeddings (augmentée de 512 à 768)
+    n_layer=12,        # Nombre de couches (augmenté de 6 à 12)
+    n_head=12,         # Nombre de têtes d'attention (augmenté de 8 à 12)
 )
 model = CustomGPT(config).to(DEVICE)
 
 # Count model parameters
 total_params = sum(p.numel() for p in model.parameters())
 trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-log_message(f"🧠 Model parameters: {total_params:,} (trainable: {trainable_params:,})")
+log_message(f"🧠 Model parameters: {total_params:,} (~{total_params/1_000_000:.1f}M) (trainable: {trainable_params:,})")
 
 # 📌 Définition de la fonction de perte et de l'optimiseur
 criterion = nn.CrossEntropyLoss()
