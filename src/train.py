@@ -144,20 +144,40 @@ def evaluate(model, dataloader, criterion):
     with torch.no_grad():
         for batch in tqdm(dataloader, desc="Evaluating", leave=False):
             batch = batch.to(DEVICE)
+            
+            # Skip batch if too short (needs at least 2 tokens: 1 for input, 1 for target)
+            if batch.size(1) < 2:
+                log_message(f"⚠️ Skipping batch with too short sequence: {batch.size()}")
+                continue
+            
+            # 🔄 Décaler les tokens pour l'apprentissage (comme dans la boucle d'entraînement)
             input_ids = batch[:, :-1]
             targets = batch[:, 1:]
+            
+            # Double check that input_ids are not empty
+            if input_ids.numel() == 0:
+                log_message(f"⚠️ Empty input_ids detected in validation, skipping batch")
+                continue
 
             outputs = model(input_ids)
-
+            
             outputs_flat = outputs.reshape(-1, config.vocab_size)
             targets_flat = targets.reshape(-1)
-
+            
+            # Check if we have any valid targets
+            if targets_flat.numel() == 0:
+                log_message(f"⚠️ Empty targets detected in validation, skipping batch")
+                continue
+                
             loss = criterion(outputs_flat, targets_flat)
-            total_loss += (
-                loss.item() * targets.numel()
-            )  # Pondérer par le nombre de tokens
-            total_tokens += targets.numel()
+            total_loss += loss.item() * targets_flat.numel()
+            total_tokens += targets_flat.numel()
 
+    # Guard against division by zero if all batches were skipped
+    if total_tokens == 0:
+        log_message("⚠️ No valid tokens processed in validation. Check your data!")
+        return {"loss": float('inf'), "perplexity": float('inf'), "time": time.time() - start_time}
+            
     avg_loss = total_loss / total_tokens
     perplexity = calculate_perplexity(avg_loss)
     eval_time = time.time() - start_time
