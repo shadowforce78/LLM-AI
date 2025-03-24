@@ -3,3 +3,4 @@ __pycache__
 .venv-linux
 data/
 logs/
+.qodo
